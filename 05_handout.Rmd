@@ -1,0 +1,413 @@
+
+---
+title: |
+  | Barcelona Summer School of Demography
+  | \vspace{1.5cm} \LARGE \emph{Module~2.~Demography with R}
+  | \vspace{0.3cm} \huge \textbf{5.~Demographic forecasting}\vspace{0.6cm}
+fontsize: 11pt
+geometry: a4paper, twoside, left=2.5cm, right=2.5cm, top=3.2cm, bottom=2.8cm, headsep
+  = 1.35cm, footskip = 1.6cm
+output:
+  pdf_document:
+    number_sections: yes
+  html_document2: default
+  html_document:
+    number_sections: yes
+    toc: yes
+  pdf_document2: default
+  header-includes:
+    - \usepackage{titling}
+    - \pretitle{\begin{center}\includegraphics[trim=0 0 0 8cm, width=6cm]{logotipCED.png}\\[\bigskipamount]}
+    - \posttitle{\end{center}}
+    - \usepackage{fancyhdr}
+    - \pagestyle{fancy}
+    - \fancyhead[LE]{\thepage~\qquad~Barcelona Summer School of Demography}
+    - \fancyhead[RE]{Module~2.~Demography with R}
+    - \fancyhead[LO]{Demographic forecasting}
+    - \fancyhead[RO]{Tim Riffe\qquad~\thepage}
+    - \fancyfoot[CO,CE]{\includegraphics[width=2.8cm]{logotipCED.png}}
+subtitle: Population growth
+bibliography: bibliography.bib
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+\noindent\makebox[\textwidth][c]{
+  \begin{minipage}[t]{0.45\textwidth}
+    \centering
+    \Large{Tim Riffe} \\
+    \vspace{0.1cm}\large{\texttt{tim.riffe@gmail.com}}
+  \end{minipage}
+}
+
+
+\vspace{0.8cm}
+\begin{center}
+\large{11 July 2025}
+\end{center}
+\vspace{0.8cm}
+
+
+\tableofcontents
+
+
+# Summary
+This script is in part inherited from Marie-Pier Bergeron Boucher. Her original version of this material forecasts both mortality and fertility using a Lee-Carter model, and then performs a population projection, as we did with stable populations, but using time-varying forecasted Leslie matrices. That's of course an excellent exercise, but there's no way we can fit it into this session. Instead we will just do a mortality forecast using the basic Lee-Carter method. Parts of this will be in base `R`, using Marie-Pier's code, unaltered (as of this writing). Others have been reformulated using the tidy approach. You may see some neat tricks for toggling back and forth between tidy objects and matrices.
+
+# Demographic forecasting
+
+In the previous class, we saw how to project population size, assuming that the population is stable, i.e. the age-specific fertility and mortality rates are constant over time. These assumptions are, however, rarely met. As shown in class 1 and 2 of this module, life expectancy has been increasing over time and TFR has been decreasing, although there are exceptions to both trends. 
+
+To obtain a plausible forecast, one must take into account these changes in fertility and mortality over time.
+
+There are four main approaches to forecasting, as defined by  @booth2006demographic:
+
+1) Extrapolative methods: *This is the most common approach*. It assumes that the future trends will be a continuity of the past. It requires little to no subjective judgment.
+
+2) Expectation methods: These methods use expectations of individuals and experts about their own and population level behaviors, respectively. The methods integrate expectations and informed judgment of experts in the forecast. 
+
+3) Structural modelling: This approach consists in explaining demographic rates by determinants, such as socio-economic determinants.
+
+4) Decomposition and disaggregation: This approach consists in breaking down rates beyond age and sex. For example, decomposing mortality by causes of deaths and fertility by parity. 
+
+For matter of simplicity, migration forecasts are set aside in this class. We will assume zero net migration in our projections, even if this assumption is considered at best naive. However, please remember that migration should also be considered in population projections. In industrialized countries, simple assumptions about future migration are often made, e.g. zero net migration or continuing of the current level of migration (with fixed age pattern). More recently, forecasters also use informed judgment and extrapolation of past trend to predict future migration flow [@booth2006demographic]. 
+
+
+
+# Data
+
+We will use the Spanish females' data from the HMD [@HMD]. You can read the output file `ESmx.csv` directly from the github site, see code in next chunk.
+
+```{r, include = FALSE, eval=FALSE}
+library(tidyverse)
+library(HMDHFDplus)
+
+ESrates   <- readHMDweb("ESP","fltper_1x1",username = Sys.getenv("us"), password = Sys.getenv("pw")) |> 
+  select(year = Year, age = Age, M = mx)
+ESpop <- readHMDweb("ESP","Exposures_1x1",username = Sys.getenv("us"), password = Sys.getenv("pw")) |> 
+  select(-OpenInterval) |> 
+  pivot_longer(Female:Total, names_to = "sex", values_to = "exposure") |> 
+  filter(sex == "Female") |> 
+  rename(year = Year, age = Age) |> 
+  select(-sex)
+
+
+ES <- left_join(ESpop, 
+                ESrates,
+                by = c("age", "year")) |> 
+  select(year, age, exposure, M) |> 
+  arrange(year, age) |> 
+  mutate(year = as.integer(year))  |>  
+  filter(between(year,1950,2014))  |> 
+  # get Deaths
+  # then group to ages 100+
+  mutate(deaths = M * exposure,
+         age = ifelse(age >= 100, 100, age)) |>  
+  group_by(year, age)  |> 
+  summarize(exposure = sum(exposure),
+            deaths = sum(deaths, na.rm = TRUE),
+            .groups = "drop")  |>  
+  # Finally get back Mx
+  mutate( mx= deaths / exposure)
+write_csv(ES,"data/ESmx.csv.gz")
+```
+
+
+```{r, eval = FALSE}
+library(tidyverse)
+ES <- read_csv("https://raw.githubusercontent.com/timriffe/BSSD2025Module2/master/data/ESmx.csv.gz", show_col_types = FALSE)
+```
+
+```{r, results='hide',echo=FALSE, message=FALSE, warning =FALSE}
+library(tidyverse)
+ES <- read_csv("data/ESmx.csv.gz", show_col_types = FALSE)
+```
+
+
+# Mortality forecasting
+
+Since the 1980s, many models have been suggested to forecast mortality. From simple models, such as extrapolating life expectancy, to more complex models including cohort effects and parameterization functions.
+
+A great deal of attention to mortality forecasting comes from the observation that death rates have been declining in a log-linear way over time, with (almost) no sign of deceleration.
+
+
+```{r error=F, message=F, warning=F}
+ES |> 
+  filter(age %% 10 == 0) |> 
+  ggplot(aes(x = year, y = mx, color = age, group = age)) +
+  geom_line() +
+  scale_y_log10() +
+  theme_minimal()
+```
+
+The most popular approach to mortality forecasting is the Lee-Carter model [@lee1992modeling]. Since 1992, most development in mortality forecasting methods has focused on extending and improving the Lee-Carter model [@booth2008mortality, @booth2006demographic]. We will focus on the original Lee-Carter model. This will help understand the mechanics of its extensions in case you ever go looking at those.
+
+## The Lee-Carter model
+
+The Lee-Carter model [@lee1992modeling] forecasts the age-specific death rates in a log-linear way, using *one* age-pattern and *one* time-index of mortality changes. The general equation is written as:
+
+$$
+ln(m_{x}(t)) = \alpha_x + \beta_x \kappa(t) + \epsilon_x(t)
+$$
+where $\alpha_x$ is the age-specific average of the log death rates ($m_x(t)$). The $\beta_x$ and $\kappa_t$ are found with a Singular Value Decomposition (SVD) and consist in the normalized first right and left singular vectors. They are interpreted as the age-pattern (age-specific rate of change relative to $\kappa(t)$) of mortality change and the time-pattern of mortality change. Mortality is forecast by extrapolating $\kappa(t)$. The term $\epsilon_x(t)$ is the error of the model.
+
+Let's go step by step!
+
+**Step 1**: Calculate the age-specific average of the log death rates. 
+```{r error = F, message = F, warning = F}
+#Log transformed data
+alpha <- 
+  ES|> 
+  mutate(lmx = log(mx)) |> 
+  group_by(age) |> 
+  summarize(alphax = mean(lmx))
+```
+
+
+Examine $\alpha_x$ in a base-tastic plot
+```{r error=F, message=F, warning=F}
+alpha |> 
+  ggplot(aes(x = age, y = alphax)) +
+  geom_line(data = ES, 
+            mapping = aes(y = log(mx), group = year),
+            color = "#11111120")+
+  geom_line(color = "red", linewidth = 1) +
+     labs(title=expression("Age-specific average"~alpha[x]~", Spanish females 1950-2014")) +
+  theme_minimal()
+```
+
+
+**Step 2**: Center the log death rates on $\alpha_x$
+
+```{r error=F, message=F, warning=F}
+clmx <-
+  ES |> 
+  left_join(alpha, by = join_by(age)) |> 
+  mutate(lmx = log(mx),
+         clmx = lmx - alphax) 
+CLMX <-  
+  clmx |> 
+  select(year, age, clmx) |> 
+  pivot_wider(names_from = year, values_from = clmx) |> 
+  column_to_rownames("age") |> 
+  as.matrix()
+
+```
+
+**Step 3**: Do SVD on the centered matrix
+
+In simple terms, the Singular Value Decomposition (SVD) is a factorization of a matrix. It uses eigenvectors and eigenvalue and is seen as a generalization of the eigen decomposition.
+
+It decomposes an $m~x~n$ matrix in an $m~x~m$ matrix, named $U$, (the columns consisting of left-singular vectors), an $m~x~n$ diagonal matrix with non-negative real numbers (singular values) and an $n~x~n$ matrix, named $V$, (the columns consisting of right-singular vectors). 
+
+Here, the left-singular vectors capture the age-pattern of mortality change and the right-singular vectors, the time-pattern of mortality change. For further insight on SVD in demography, take a look at Monica Alexander's 2017 blog post [https://www.monicaalexander.com/posts/2017-12-16-svd/](https://www.monicaalexander.com/posts/2017-12-16-svd/)
+
+
+```{r error=F, message=F, warning=F}
+#SVD: using first vectors and value only
+
+svd_lM <- svd(CLMX)
+
+u      <- svd_lM$u[, 1]
+v      <- svd_lM$v[, 1]
+d      <- svd_lM$d[1]
+
+#Explained variance
+
+exp.var<- cumsum((svd_lM$d)^2 / sum((svd_lM$d)^2))[1]
+exp.var
+```
+
+In order to reach a unique solution, the parameters are normalized such that $\sum_x \beta_x = 1$ and $\sum_t \kappa(t) = 0$. 
+
+```{r error=F, message=F, warning=F}
+
+#Normalization
+
+Bx <- u / sum(u)
+Bx
+beta <- tibble(age=0:100, betax = Bx)
+beta |> 
+  ggplot(aes(x = age, y = betax)) +
+  geom_line()+
+  labs(y=expression(beta[x]), xlab="Age",
+     title=expression("Age-pattern of mortality change"~beta[x]~", Spanish females 1950-2014"),
+     x="Age") +
+  theme_minimal()
+```
+
+Now we calculate and view the shared trend line:
+```{r}
+Kt <- v * sum(u) * d
+kappa <- tibble(year = 1950:2014,
+                kappat = Kt)
+kappa |> 
+ggplot(aes(x = year, y = kappat)) +
+  geom_line() +
+  theme_minimal() +
+  geom_hline(yintercept = 0, lty = 2) +
+  labs(y=expression(kappa(t)), x="Age",
+     title=expression("Time-pattern of mortality change"~kappa(t)~", Spanish females 1950-2014"))
+```
+
+**Step 4**: Forecast $\kappa_t$
+
+@lee1992modeling suggest forecasting $\kappa_t$ with a random walk with drift. The method is written as:
+
+$$
+\kappa(t+1) = \kappa(t) + D + \epsilon_{\kappa}(t)
+$$
+Where $D$ is the drift and $\epsilon_{\kappa}(t)$ is the errors from fitting a random walk with drift to $\kappa(t)$.
+
+$$
+D = \frac{\kappa(T)-\kappa(0)}{T-1}
+$$
+where $T$ is the last year observed.
+
+```{r error=F, message=F, warning=F}
+
+#Forecast horizon
+h      <- 1:100
+Year   <- 1950:2014
+#Drift
+lK     <- length(Kt)
+(drift  <- (Kt[lK] - Kt[1]) / (lK - 1))
+
+
+#Forecast
+Kt.fcst <- Kt[lK] + drift * h
+kappath <- tibble(year = 2014 + h,
+                  kappat = Kt.fcst)
+
+kappa_all <- bind_rows(
+  kappa |> 
+    mutate(series = "observed"),
+  kappath |> 
+    mutate(series = "forecast")
+)
+kappa_all |> 
+ggplot(aes(x = year, y = kappat, color = series)) +
+  geom_line() +
+  theme_minimal() +
+  labs(
+     y = expression(kappa(t)), x="Age",
+     title = expression(~kappa(t)~"observed and forecast, Spanish females 1950-2014"))
+```
+
+
+
+**Step 5**: Find the prediction intervals (PI) 
+
+The prediction intervals (PI) are found by finding the standard errors of the estimates (SE) from the random walk with drift model. The SE indicates the uncertainty with one year forecast ahead. It is here assumed that the SE increase with the forecast horizon (h) square root.
+
+$$
+PI(t+h) = \kappa(t+h) +/- z_{1-a} SE \sqrt{h}
+$$
+where $z$ is the z-score at level $a$
+```{r error=F, message=F, warning=F}
+
+# Fit random walk with drift
+fit.Kt <- Kt[1:(lK - 1)] + drift
+
+# Find SE
+se     <- sqrt(sum((Kt[2:lK] - fit.Kt)^2) / (length(Kt) - 1))
+
+# Calculate PI
+kappa_all <- 
+kappa_all |> 
+  mutate(h = year - 2014,
+         h = if_else(h <= 0, NA, h),
+         kappat_95u = kappat + 1.96 * se * sqrt(h),
+         kappat_95l = kappat - 1.96 * se * sqrt(h),
+         kappat_95u = if_else(series == "observed",NA, kappat_95u),
+         kappat_95l = if_else(series == "observed",NA, kappat_95l))
+
+kappa_all |> 
+  ggplot(aes(x = year, y = kappat, color = series)) +
+  geom_line() +
+  theme_minimal() +
+  labs(
+     y = expression(kappa(t)), x="Age",
+     title = expression(~kappa(t)~"observed and forecast, Spanish females 1950-2014")) +
+  geom_ribbon(mapping = aes(x = year, ymin = kappat_95l, ymax = kappat_95u),
+              alpha = .4)
+
+```
+
+
+**Step 6**: Reconstruct and back-transform the matrix
+
+This is just taking the reverse steps of what we first did to $M_x$.
+```{r error=F, message=F, warning=F}
+mx_fit <- 
+beta |> 
+  cross_join(kappa_all) |> 
+  left_join(alpha, by = join_by(age)) |> 
+  mutate(mx_fit = exp(betax * kappat + alphax),
+         mx_fcst_lower = exp(betax * kappat_95l + alphax),
+         mx_fcst_upper = exp(betax * kappat_95u + alphax)) |> 
+  select(year, age, series, mx_fit, mx_fcst_lower, mx_fcst_upper)
+```
+
+**Step 7**: Calculate the life table
+
+Here the lifetable code is verbatim from Tuesday solutions.
+```{r error=F, message=F, warning=F}
+source("https://raw.githubusercontent.com/timriffe/BSSD2025Module2/master/02_lifetables.R")
+ES_bind <-
+ES |> 
+  select(year, age, mx) |> 
+  mutate(series = "observed",
+         variant = "empirical")
+LT_fit <-
+  mx_fit |> 
+  select(year, age, series, mx_fit, mx_fcst_lower, mx_fcst_upper) |> 
+  pivot_longer(c(mx_fit, mx_fcst_lower, mx_fcst_upper), 
+               names_to = "variant",
+               values_to = "mx") |> 
+  filter(!is.na(mx)) |> 
+  bind_rows(ES_bind) |> 
+  group_by(year, series, variant) |> 
+  group_modify(~LT_tidy(data = .x)) |> 
+  ungroup() 
+
+```
+
+## Visualize results
+
+Life expectancy at birth
+```{r}
+LT_fit |> 
+  filter(age == 0) |> 
+  select(year, ex, variant, series) |> 
+  ggplot(aes(x = year, 
+             y = ex, 
+             color = series, 
+             linetype = variant,
+             group = interaction(series, variant))) +
+  geom_line() +
+  labs(title = "Life expectancy at birth, observed, fitted, forecast",
+       y = "e0") +
+  theme_minimal()
+```
+
+Life expectancy at age 65
+```{r}
+LT_fit |> 
+  filter(age == 65) |> 
+  select(year, ex, variant, series) |> 
+  ggplot(aes(x = year, 
+             y = ex, 
+             color = series, 
+             linetype = variant,
+             group = interaction(series, variant))) +
+  geom_line() +
+  labs(title = "Life expectancy at age 65, observed, fitted, forecast",
+       y = "e65",
+       caption = "Looks like we'd have a better forecast in these ages\nif we fit to years 1970+") +
+  theme_minimal()
+```
+
+# References {-}

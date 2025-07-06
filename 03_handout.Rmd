@@ -1,0 +1,662 @@
+---
+title: |
+  | Barcelona Summer School of Demography
+  | \vspace{1.5cm} \LARGE \emph{Module~2.~Demography with R}
+  | \vspace{0.3cm} \huge \textbf{3.~Standardization and decomposition}\vspace{0.6cm}
+fontsize: 11pt
+geometry: a4paper, twoside, left=2.5cm, right=2.5cm, top=3.2cm, bottom=2.8cm, headsep
+  = 1.35cm, footskip = 1.6cm
+output:
+  pdf_document:
+    number_sections: yes
+  html_document2: default
+  html_document:
+    number_sections: yes
+    toc: yes
+  pdf_document2: default
+  header-includes:
+    - \usepackage{titling}
+    - \pretitle{\begin{center}\includegraphics[trim=0 0 0 8cm, width=6cm]{logotipCED.png}\\[\bigskipamount]}
+    - \posttitle{\end{center}}
+    - \usepackage{fancyhdr}
+    - \pagestyle{fancy}
+    - \fancyhead[LE]{\thepage~\qquad~Barcelona Summer School of Demography}
+    - \fancyhead[RE]{Module~2.~Demography with R}
+    - \fancyhead[LO]{Standardization and decomposition}
+    - \fancyhead[RO]{Tim Riffe\qquad~\thepage}
+    - \fancyfoot[CO,CE]{\includegraphics[width=2.8cm]{logotipCED.png}}
+subtitle: Standardization and decomposition
+bibliography: bibliography.bib
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+\noindent\makebox[\textwidth][c]{
+  \begin{minipage}[t]{0.45\textwidth}
+    \centering
+    \Large{Tim Riffe} \\
+    \vspace{0.1cm}\large{\texttt{tim.riffe@gmail.com}}
+  \end{minipage}
+}
+
+
+\vspace{0.8cm}
+\begin{center}
+\large{9 July 2025}
+\end{center}
+\vspace{0.8cm}
+
+
+\tableofcontents
+
+
+# Summary
+
+Today we'll look at ways to make data more comparable (standardization) and ways to explain differences between summary measures (decomposition). As per the previous days, this material was originally prepared by the one-and-only Marie-Pier Bergeron-Boucher, credit is due to her for organizing the logic and rigor of this lesson. My contributions have been light edits to the text, occasional insertions where I though they would help, and doing an full overhaul of the code to a tidy approach.
+
+# Data
+
+We will compare mortality in Taiwan and Japan. I downloaded their mortality rates from the HMD using the *demography* package [@demographyR] and tidified them using the approach from yesterday. I save you having to replicate that code and have posted the data as a `csv` on the github site. You can read it directly into `R`, below.
+
+```{r include = FALSE, eval = FALSE}
+library(demography)
+library(tidyverse)
+library(janitor)
+# us <- "your.user.name" # probably email
+# pw <- "your password"
+
+twn <- hmd.mx("TWN", us, pw)
+jpn  <- hmd.mx("JPN", us, pw)
+
+sexes <- twn$pop |> names()
+
+# two containers, columns given, but no rows
+TWNpop   <- tibble(Year = NULL, Age = NULL, Sex = NULL, Exposure = NULL)
+TWNrates <- tibble(Year = NULL, Age = NULL, Sex = NULL, M = NULL)
+JPNpop   <- tibble(Year = NULL, Age = NULL, Sex = NULL, Exposure = NULL)
+JPNrates <- tibble(Year = NULL, Age = NULL, Sex = NULL, M = NULL)
+
+for (i in sexes){
+  TWNpop <- twn$pop[[i]] |> 
+    as_tibble() |> 
+    rownames_to_column("Age") |> 
+    pivot_longer(cols = -Age,     
+                 names_to = "Year", 
+                 values_to = "Exposure") |> 
+    mutate(Sex = i,
+           Age = as.integer(Age) - 1,
+           Country = "Taiwan") |> 
+    bind_rows(TWNpop)
+  
+  TWNrates  <- twn$rate[[i]] |> 
+    as_tibble() |> 
+    rownames_to_column("Age") |> 
+    pivot_longer(cols = -Age, names_to = "Year", values_to = "M") |> 
+    mutate(Sex = i,
+           Age = as.integer(Age) - 1,
+           Country = "Taiwan") |> 
+    bind_rows(TWNrates)
+  
+  JPNpop <- jpn$pop[[i]] |> 
+    as_tibble() |> 
+    rownames_to_column("Age") |> 
+    pivot_longer(cols = -Age,     
+                 names_to = "Year", 
+                 values_to = "Exposure") |> 
+    mutate(Sex = i,
+           Age = as.integer(Age) - 1,
+           Country = "Japan") |> 
+    bind_rows(JPNpop)
+  
+  JPNrates  <- jpn$rate[[i]] |> 
+    as_tibble() |> 
+    rownames_to_column("Age") |> 
+    pivot_longer(cols = -Age, names_to = "Year", values_to = "M") |> 
+    mutate(Sex = i,
+           Age = as.integer(Age) - 1,
+           Country = "Japan") |> 
+    bind_rows(JPNrates)
+}
+
+TWN <- left_join(TWNpop, 
+                TWNrates,
+                by = c("Age", "Year", "Sex", "Country")) |> 
+  select(Country, Year, Sex, Age, Exposure, M) |> 
+  arrange(Year, Sex, Age)
+
+JPN <- left_join(JPNpop, 
+                JPNrates,
+                by = c("Age", "Year", "Sex","Country")) |> 
+  select(Country, Year, Sex, Age, Exposure, M) |> 
+  arrange(Year, Sex, Age)
+
+DAT <- bind_rows(TWN, JPN) |> 
+  filter(Year >= 1970) |> 
+  clean_names() |> 
+  rename(mx = m)
+# getwd()
+write_csv(DAT, "data/JPNTWN.csv")
+```
+
+We *might* use the `DemoDecomp` package today if there's time and someone wants a demonstration of generalized decomposition. Just in case, feel free to install this, though it isn't strictly required for the prepared lesson.
+```{r, eval = FALSE}
+install.packages("DemoDecomp")
+```
+I sometimes make updates to it without pushing to the main `R` repositories, so you could also get a more up-to-date version of the package here, if so inclined
+```{r, eval = FALSE}
+install.packages("remotes")
+library(remotes)
+install_github("timriffe/DemoDecomp")
+```
+
+Get the data and load our beloved packages:
+```{r, message = FALSE}
+library(tidyverse)
+library(DemoDecomp)
+# will copy this link into the google doc too
+DAT <- read_csv("https://github.com/timriffe/BSSD2025Module2/raw/master/data/JPNTWN.csv")
+```
+
+# Standardization 
+
+Standardization is a commonly-used technique when comparing rates or probabilities for groups with differences in composition. Standardization is used to avoid the confounding effect of the population structure by simply equalizing structure for all groups.
+
+## Problems with crude measures
+
+Let's start by comparing the crude mortality rates in Japan and Taiwan in 2014.
+
+```{r message=F, warning=F}
+DAT |> 
+  filter(sex == "total",
+         year == 2014) |> 
+  mutate(deaths = mx * exposure) |> 
+  group_by(country) |> 
+  summarize(CDR = 1000 * sum(deaths) / sum(exposure))
+```
+
+Japan has a higher CDR than Taiwan, which *the many* would interpret as Japan having higher mortality than Taiwan. However, if we look at the age-specific death rates, we have a different story.
+
+```{r message=F, warning=F}
+# Age-specific death rates
+DAT |> 
+  filter(sex == "total",
+         year == 2014) |> 
+  ggplot(aes(x = age, y = mx, color = country)) + 
+  geom_line() +
+  scale_y_log10() +
+  labs(title = "Age-specific death rates in Japan and Taiwan, 2014",
+       subtitle = "These appear higher in Taiwan") +
+  theme_minimal()
+```
+
+Here, we see that Japan has lower age-specific death rates than Taiwan at all ages, despite having a higher CDR. This occurs because 1) mortality has a strong age gradient: stronger than the international differences in this comparison, and 2) therefore the CDR is very sensitive to the population age structure, which is acting as an *implicit* weight for the mortality rates. 
+
+```{r message=F, warning=F}
+breaks = seq(-0.01, 0.01, 0.0025)
+
+DAT |> 
+  filter(year == 2014,
+         sex != "total") |> 
+  group_by(country) |> 
+  mutate(structure = exposure / sum(exposure),
+         population = ifelse(sex == "male", -structure, structure)) |> 
+  ungroup() |> 
+  ggplot(aes(x = age, 
+             y = population, 
+             color = country, 
+             group = interaction(sex, country))) +
+  geom_step() + 
+  coord_flip() +
+  scale_y_continuous(breaks = seq(-0.01, 0.01, 0.0025),
+                   labels = paste0(as.character(
+                       c(seq(.01, 0, -.0025), seq(0.0025, 0.01, 0.0025))*100), "%")) +
+  scale_x_continuous(breaks = seq(0,100,by=20)) +
+  labs(title = "Population structure in Japan and Taiwan",
+       subtitle = "Japan has a higher fraction of population in older ages",
+       caption = "(1 box = 5%)") +
+  theme_minimal() +
+  theme(panel.grid.minor = element_blank())
+
+```
+
+The age pyramids indicate that Japan has an older age structure than Taiwan. In 2014, 26% of Japanese population was aged 65 years old or higher, compared with 12% in Taiwan. As death rates are much higher in older ages, an older population will have a higher CDR than younger population. Recall variation over age is typically higher than variation between countries! 
+
+## Direct standardization
+
+To avoid the confounding effect of population structure (e.g. age structure) when comparing rates, direct standardization can be used. This method allows us to estimate what the crude rate *would be* if both populations had the same structure.    
+
+An important relation between structure-specific rates ($r_c$) and crude rates (R) is:
+
+\begin{equation}
+\label{eq:Rel}
+R = \sum_c^{\infty} r_c s_c
+\end{equation}
+
+where $s_c$ is the population structure by component $c$ (for example age, or age and sex). For the crude death rates, 
+
+$$CDR = \frac{\sum D_x}{\sum P_x} = \sum_x^{\infty} m_x s_x $$.
+
+where $s_x = \frac{P_x}{\sum (P_x)}$, i.e. the population structure net of its size.
+
+The direct standardization method consists in:
+
+* Finding a *standard* structure ($s^A_c$), e.g. an average structure between the population compared or the structure of one of these populations.
+* Multiplying the component-specific rates ($r_c$) of the studied population by the standard structure.
+* The standardized crude rates are found by summing $s^A_c r_c$
+
+
+```{r message=F, warning=F}
+# Standardizing CDR of Taiwan and Japan, 
+# using avg structure as the standard
+DAT |> 
+  filter(year == 2014,
+         sex != "total") |> 
+  # 1. calc structure per country
+  group_by(country) |> 
+  mutate(structure = exposure / sum(exposure)) |> 
+  # 2. calc the standard, per age (standard is not sex-specific)
+  group_by(age) |> 
+  mutate(standard = mean(structure)) |> 
+  # 3. rescale standard to sum to 1 per country;
+  # note: it's the same standard for each subset
+  group_by(country) |> 
+  mutate(standard = standard / sum(standard)) |> 
+  # 4. calculate and compare rates
+  summarize(CDR = 1000 * sum(mx * structure),
+            ASDR = 1000 * sum(mx * standard))
+
+```
+After standardization, Japan has a lower CDR than Taiwan, the CDR being now consistent with what observed at the age-specific level.
+
+## Indirect standardization
+
+The indirect standardization is used to estimate what would be the crude rates if both populations had the same component-specific rates. This method allows quantifying the effect of population structure on mortality.
+
+The method consists in:
+
+* Finding *standard* component-specific rates ($r^A_c$).
+* Multiplying the population structures ($s_c$) of the studied population by the standard component-specific rates.
+* The standardized crude rates are found by summing $s_c r^A_c$
+
+```{r message=F, warning=F}
+  DAT |> 
+  filter(year == 2014, 
+         sex == "total") |> 
+  group_by(country) |> 
+  mutate(structure = exposure / sum(exposure)) |> 
+  group_by(age) |> 
+  mutate(mx_standard = mean(mx)) |> 
+  group_by(country) |> 
+  summarize(CDR = 1000 * sum(mx * structure),
+            ASDR_indirect = 1000 * sum(mx_standard * structure))
+```
+
+# Decomposition methods
+
+Decomposition methods are common tools in demography, used to understand differences in a demographic measure between two or more populations. These methods allow quantifying the exact contribution of specific components, such as ages and causes of death, to this difference between populations. 
+
+## Kitagawa decomposition: Decomposing differences in crude rates
+
+Kitagawa decomposition [@kitagawa1955components] aims at quantifying how much of the difference between two crude rates is due to composition effects (e.g. difference in the age-structures) and how much is due to differences in the component-specific rates.
+
+The Kitagawa decomposition [@kitagawa1955components] was the first to decompose the difference between two rates by a composition effect and a rate effect, using multiple standardizations. It brings together both direct and indirect standardizations. 
+
+For example, when applied to the CDR, the decomposition is written as:
+
+$$
+CDR^J - CDR^T = \underbrace{\sum_x^{\infty} (m_x^J - m_x^T)\big( \frac{s_x^J + s_x^T}{2} \big)}_{RE:~rate~effect} + \underbrace{\sum_x^{\infty} (s_x^J - s_x^T)\big( \frac{m_x^J + m_x^T}{2} \big)}_{CE:~composition~effect}
+$$
+The left hand side of the equation (named RE) captures how much of the difference in the CDR between Japan and Taiwan is due to difference in age-specific death rates ($m_x$). This is the same process as finding the difference between the two crude rate after direct standardization, using the average population structure as standard.
+
+The right hand side of the equation (named CE) captures how much of the difference in the CDR is due to age-structure ($s_x$) differences. This is the same process as finding the difference between the two crude rate after indirect standardization, using the average age-specific rate as standard.
+
+```{r message=F, warning=F}
+
+# Get data in convenient format for side-by side calcs
+DAT_Dec <-
+  DAT |> 
+  filter(year == 2014, 
+         sex == "total") |> 
+  group_by(country) |> 
+  mutate(sx = exposure / sum(exposure)) |> 
+  ungroup() |> 
+  select(-exposure) |> 
+  pivot_wider(names_from = country, values_from = c(mx, sx))
+```
+
+This bit of code performs the Kitagawa decomposition
+```{r}
+DAT_Dec |> 
+  mutate(
+    # calculate standards
+         mx_avg = (mx_Taiwan + mx_Japan) / 2,
+         sx_avg = (sx_Taiwan + sx_Japan) / 2,
+    # weight differences
+         RE = (mx_Japan - mx_Taiwan) * sx_avg,
+         CE = (sx_Japan - sx_Taiwan) * mx_avg) |> 
+    # summarize decomp results, compare with original CDR
+  summarize(RE = 1000 * sum(RE),
+            CE = 1000 * sum(CE),
+            CDR_Japan = 1000 * sum(mx_Japan * sx_Japan),
+            CDR_Taiwan = 1000 * sum(mx_Taiwan * sx_Taiwan)) |> 
+  mutate(CDR_diff = CDR_Japan - CDR_Taiwan) |> 
+  select(-CDR_Japan, -CDR_Taiwan) 
+```
+
+Any kind of _weighted mean_ can be decomposed with the Kitagawa method. The CBR, GFR, survival rates/probabilities, neonatal mortality rates, to names only a few, can also be decomposed using this method, as long as the relation between component-specific rates and the component structure, as expressed in equation (\ref{eq:Rel}), holds. The components can be age, socioeconomic status, race, etc. 
+
+More than one structure/composition effects can also be included. For more information see @kitagawa1955components and @gupta1978general. 
+ 
+## Arriaga decomposition: Decomposing differences in life expectancy
+
+The Arriaga method [@arriaga1984measuring] is designed to decompose a _change_ in life expectancy by age. 
+
+The method is usually expressed using survival probabilities ($l_x$) and person-years ($_nL_x$ and $T_x$) in the life table as the primary ingredients. We will calculate a lifetable using tools we created in the second session.
+
+```{r}
+source("https://raw.githubusercontent.com/timriffe/BSSD2024Module2/master/02_lifetables.R")
+LT <- 
+  DAT |> 
+  filter(year == 2014, sex == "total") |> 
+  group_by(country) |> 
+  group_modify(~LT_tidy(data = .x)) |> 
+  ungroup()  
+```
+
+
+The difference in life expectancy between Japan and Taiwan is greater than 4 years. The Arriaga method can help figure out which ages (or age-groups) contribute to this difference. BUT, the method can be described as directional (as opposed to symmetrical) because it makes a difference whether we compare Japan with Taiwan or Taiwan with Japan! This is fine, if we're comparing mortality in 2000 with mortality in 2023: the direction of time is ambiguous, and we can imagine a sort of long term consistent secular change. Likewise, one could decompose between an disadvantaged and advantaged population, since we would hope that the disadvantaged group would come to obtain the mortality of the advantaged group, but are not interested in the consequences of the opposite. To compare groups that are qualitatively different, we'd prefer a symmetrical response.
+
+```{r message=F, warning=F}
+#step 2: find the difference in life expectancy
+LT |> 
+  filter(age == 0) |> 
+  select(country, ex)
+```
+
+Let's select just the columns we'll need, and move them side by side, like before:
+
+```{r}
+LT_arriaga <-
+  LT |> 
+  mutate(country = substr(country, 1,1) |> tolower()) |> 
+  select(country, age, lx, Lx, Tx) |> 
+  pivot_wider(names_from = country, values_from = c(lx, Lx, Tx))
+```
+
+
+The method goes in two steps:
+
+1) Find the direct effect.
+
+The direct effect quantifies how much the difference in the number of years lived between age $x$ and $x+n$ contributes to the difference in life expectancy. It is the "*change in life years within a particular age group as a consequence of the mortality change in that age group*" [@arriaga1984measuring].
+
+$$
+_nD_x = \frac{l_x^T }{l_0^T} \big( \frac{_nL_x^J}{l_x^J} -\frac{_nL_x^T}{l_x^T} \big)
+$$
+
+2) Finding the indirect effect
+
+The indirect effect (and interaction effect) is the "*number of person-years added to a given life expectancy because the mortality change, within a specific age group, will produce a change in the number of survivors at the end of the age interval*."[@arriaga1984measuring]
+
+$$
+_nI_x= \frac{T_{x+n}^J}{l_0^T} \big( \frac{l_x^T}{l_x^J} - \frac{l_{x+n}^T}{l_{x+n}^J} \big)
+$$
+
+One way to do it with the tidy approach:
+
+```{r message=F, warning=F}
+LT_arriaga <-
+  LT_arriaga |> 
+  mutate(direct = lx_t * (Lx_j / lx_j - Lx_t / lx_t),
+         indirect = lead(Tx_j, default = 0) * 
+           (lx_t / lx_j - 
+              lead(lx_t, default = 0) / lead(lx_j, default = 0)),
+         # impute 0 in the final NA
+         indirect = ifelse(is.nan(indirect),0,indirect))
+```
+
+The direct and indirect contributions sum to the total differences. The Arriaga formula is then written as:
+
+$$
+_n\Delta_x = \frac{l_x^T }{l_0^T} \Big( \frac{_nL_x^J}{l_x^J} -\frac{_nL_x^T}{l_x^T} \Big) + \frac{T_{x+n}^J}{l_0^T} \Big( \frac{l_x^T}{l_x^J} - \frac{l_{x+n}^T}{l_{x+n}^J} \Big)
+$$
+
+
+where $_n\Delta_x$ is the contribution to the difference in life expectancy at birth in age group x to x+n. The last (and open) age-interval consists only of the direct effect.
+
+The sum of the indirect and direct effect gives the total effect of mortality differences in each age.
+```{r message=F, warning=F}
+arriaga <-
+LT_arriaga  |> 
+  mutate(total = indirect + direct) |> 
+  select(age, total)
+```
+
+The method is exact in that the sum of age-specific effects equals the life expectancy difference:
+```{r}
+# decomposition sum
+arriaga$total |> sum()
+
+# it's exact!
+LT |> 
+  filter(age == 0) |> 
+  pull(ex) |> 
+  diff()
+```
+
+
+Take a look at the age patterns of these contributions to the difference:
+```{r}
+# age pattern
+arriaga |> 
+  ggplot(aes(x= age, y= total)) +
+  geom_line() + 
+  labs(title = "Age-specific contributions of mortality differences\nto differences in life expectancy at birth",
+       subtitle = "Arriaga method")
+```
+
+An extension of the Arriaga method decomposing life expectancy by age AND cause of death is also available (see @preston2001demography). There is also an extension for healthy life expectancy (see @shkolnikov2017decomposition).
+
+# NEW: Symmetry in decomposition
+
+It will be convenient to implement the Arriaga steps into a function, for the sake of demonstrating some properties of the method. But I already did that in a separate R package in development, so let's just install that and use it instead. You can install it from GitHub like so. Note: Windows users may need to install RTools from here <https://cran.r-project.org/bin/windows/Rtools/> to be able to install R packages from GitHub.
+
+```{r, eval = FALSE}
+library(remotes)
+install_github("timriffe/coddecomp")
+```
+
+In this package, everything is a fucntion of rates (yay!), because recall, the three lifetable columns used in the Arriaga method can each be derived from rates, voila:
+```{r}
+library(coddecomp)
+directional <-
+  LT |> 
+  select(country, sex, age, mx) |> 
+  pivot_wider(names_from = country, values_from = mx) |>
+  group_by(sex) |> 
+  mutate(
+    sex = substr(sex,1,1),
+    jt = -arriaga(Japan, Taiwan, age, sex1 = sex[1]),
+    tj = arriaga(Taiwan, Japan, age, sex1 = sex[1])) |> 
+  select(sex, age, jt, tj) |> 
+  pivot_longer(c(jt, tj),
+               names_to = "direction",
+               values_to = "effect") 
+```
+
+Now note how it makes a difference which direction we decompose (and that you need to flip the sign for one of them to be consistent).
+
+```{r}
+directional |> 
+  ggplot(aes(x=age, y = effect, color = direction)) +
+  geom_line() +
+  theme_minimal()
+```
+
+This difference isn't huge: you'd still arrive at the same narrative for what ages contribute the most to life expectancy differences, but for this comparison, the slightly more rigorous thing to do would be to average the effects for each age:
+
+```{r}
+directional |> 
+  group_by(age) |> 
+  summarize(effect_sym = mean(effect))
+```
+
+Actually the same package has a function for doing exactly this:
+
+```{r}
+LT |> 
+  select(country, sex, age, mx) |> 
+  pivot_wider(names_from = country, values_from = mx) |>
+  group_by(sex) |> 
+  mutate(
+    sex = substr(sex,1,1),
+    sensitivity = sen_arriaga_sym(Japan, Taiwan, sex1 = sex[1]),
+    effect = sensitivity * (Japan - Taiwan)) |> 
+  ggplot(aes(x=age, y = effect)) +
+  geom_line() +
+  theme_minimal() +
+  labs(title = "Symmetrical Arriaga decomposition of e0 differences between Japan and Taiwan",
+       caption = "Data: HMD")
+```
+
+
+
+# Generalized decomposition
+Kitagawa decomposition is applicable to quantities calculated as weighted means, for example where the weights might differ in the groups compared. Arriaga decomposition works with life tables and life expectancy, and so we call it a *bespoke* decomposition. That means that an analytic solution has been derived for these settings that allows for the decomposition to be directly calculated. 
+
+A generalized decomposition method is one that applied *any* deterministic function of parameters that produces some synthetic measure based on them. For example, in the case of Kitagawa the parameters are a vector of age structure and demographic rates. To do a life expectancy decomposition with a generalized method, you need a function that converts rates to life expectancy (not the whole lifetable).
+
+Three generalized methods are
+1. The method of difference-scaled partial derivatives @caswell1989analysis
+| This method was originally called the lifetable response experiment (LTRE), but it's totally general. 
+| We might also call it the _Caswell_ method.
+2. The method of step-wise parameter replacement (@andreev2002algorithm and @andreev2012excel)
+3. The method of gradual perturbation (@horiuchi2008decomposition)
+| This is also known as pseudo-continuous decomposition, as the linear integral method, or else we just call it the _Horiuchi_ method.
+
+All three of these are implemented in the `DemoDecomp` `R` package (@DemoDecomp), with the functions `ltre()`, `stepwise_replacement()`, and `horiuchi()`. There's no paper really comparing them, but here's Tim's hand-wavy explanation of their differences:
+
+## LTRE `ltre()`
+This method numerically calculates the partial derivatives of your function's parameters half way between the first and second set of parameters, then multiplies them by the observed difference in each parameter. This is a decent approximation of the contribution of each parameter to the difference in the quantity calculated. This method can be blazing fast if you have an analytic partial derivative function on hand.
+
+## Stepwise replacement `stepwise_replacement()`
+This method works by swapping out elements of the first parameters incrementally turning them into the second set of parameters. At each parameter replacement, we recalculate the result. You end up with your result calculated as many times as you have parameters. The moving first differences on this result vector approximates the leverage of that parameter's difference on the result. Since it makes a difference what order you swap the results out, usually one averages the results of going *up* and *down* the parameters. If you have $n$ parameters, it recalculates the result $2*n$ times. The sum of the parameter-specific contributions is equal to the difference in the summary result. Each-parameter's contribution is approximate.
+
+## Gradual perturbation `horiuchi()`
+This method works by interpolating between your first and second parameters in `N` equal steps. This then becomes the ($n*N$) *background* against which rate differences are perturbed. At each interpolation point and for each parameter we perturb the parameter both up and down by $1/(2*N)$ of the amount by which it changed and recalculate the result. The difference between these two calculations is an $n*N$ approximation of each parameter at each interpolation point, and summing over the interpolated space within parameters approximates the contribution of that parameter to the different in your result. For $n$ parameters and $N$ interpolation points, your result ends up recalculated $2*n*N$ times, so for large numbers of parameters and large `N` this method can be slow. 
+
+## How they work
+As far as we're concerned, to use these decomposition methods from `DemoDecomp` package you need to be able to write your code in the form of a function that takes a single vector of parameters.
+
+Here's a function that calculates a crude rate, so we can compare it with Kitagawa. Kitagawa needs two pieces of information, structure and rates (weights and the thing being weighted). We should write the function so that these are stacked in a single vector, e.g. `c(rates, structure)` or vice versa. Your function then needs to be able to unpack the vector and use it to calculate your result.
+
+```{r}
+my_CrudeRate <- function(params){
+  
+  # first we need to sort out which parameter is which
+  n <- length(params)
+  
+  # we stacked M on top of Sx, so reshape to a 2 column matrix
+  dim(params) <- c(n / 2, 2)
+  
+  # return one summary measure
+  sum(params[,1] * params[,2])
+}
+```
+
+You can use the decomposition functions in base or in a tidy setup. For either, you'll want the parameters ordered in the way expected by your function.
+
+```{r}
+DAT_Dec2 <-
+  DAT |> 
+  filter(year == 2014, 
+         sex == "total") |> 
+  group_by(country) |> 
+  mutate(sx = exposure / sum(exposure)) |> 
+  ungroup() |> 
+  select(-exposure) |> 
+  pivot_longer(mx:sx, 
+               names_to = "variable", 
+               values_to = "pars") |> 
+  pivot_wider(names_from = country, values_from = pars) |> 
+  arrange(variable, age)
+```
+
+In base, let's check they all at least are additive in the desired way:
+
+```{r}
+1000 * (my_CrudeRate(DAT_Dec2$Japan) - 
+my_CrudeRate(DAT_Dec2$Taiwan))
+
+1000 * ltre(func = my_CrudeRate, 
+     pars1 = DAT_Dec2$Taiwan,
+     pars2 =DAT_Dec2$Japan,
+     N = 1) |> 
+     sum()
+
+1000 * stepwise_replacement(
+     func = my_CrudeRate, 
+     pars1 = DAT_Dec2$Taiwan,
+     pars2 =DAT_Dec2$Japan) |> 
+     sum()
+
+1000 * horiuchi(
+     func = my_CrudeRate, 
+     pars1 = DAT_Dec2$Taiwan,
+     pars2 =DAT_Dec2$Japan,
+     N = 10) |> 
+     sum()
+```
+Since you end up with one contribution per parameter, decomposition results can sometimes be multidimensional, and can benefit from further aggregation and processing (remember they're additive). Otherwise, you end up with more results than you know what to do with. For that reason, you might do well to just stay in the tidy framework:
+
+```{r}
+DAT_Dec2 |> 
+  mutate(contribution = horiuchi(
+     func = my_CrudeRate, 
+     pars1 = Taiwan,
+     pars2 = Japan,
+     N = 10
+  ),
+  # group to 10-year age groups
+  age = age - age %% 10) |> 
+  # sum contributions in groups and by variable
+  group_by(variable, age) |> 
+  summarize(contribution = sum(contribution), .groups = "drop") |> 
+  ggplot(aes(x = age+5, y = contribution, fill = variable)) + 
+  geom_col(width = 10) + 
+  xlab("Age") + 
+  labs(title = "Contribution of mortality rates and population structure\nto differences in crude mortality rate",
+       subtitle = "Beware, structure components (blue) should ideally be summed rather than examined like this") +
+  theme_minimal()
+```
+
+# Exercises {-}
+
+Choose one country from the HMD and select 2 years (ideally over 15 years apart).
+
+## Exercise 1 {-}
+
+1) Create a function calculating the CDR, standardized death rate (direct) and the Kitagawa decomposition. 
+2) Calculate the age-specific rate effect and total composition effect of the difference.
+3) What factors allowed the CDR to decrease (or increase) over time?
+
+
+## Exercise 2 {-}
+
+1) Calculate the life table from these two years.
+3) Calculate the age-specific contributions for the change in life expectancy over time using the _directional_ Arriaga method.
+4) Plot and interpret the results.
+
+# References {-}
+
+
+
+
+
+
+
+
+
+
