@@ -2,7 +2,7 @@
 title: "Session 1 notes"
 author: "Tim Riffe"
 date: "2025-07-08"
-output: html_document
+output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
