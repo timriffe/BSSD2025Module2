@@ -174,7 +174,6 @@ E |>
 ## Exercises in session
 
 1. Merge `B` and `Ex`, matching ages, but taking care that births are matched to female exposures.
-This is how I joined the data
 
 2. Calculate the General Fertility Rate, GFR, which is:
 $$ GFR = 1000 \cdot \frac{\sum_{15}^{49}B_x}{\sum_{15}^{49}E_x} $$
