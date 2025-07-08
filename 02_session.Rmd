@@ -46,15 +46,41 @@ calc_qx <- function(mx, ax, age){
   qx <- if_else(age == max(age), 1, qx)
   return(qx)
 }
+```
 
+# chain probabilities to make survivorship!
+
+$$ \ell_x = radix \cdot \prod _0^{x-1} (1 - q_x)$$
+
+```{r}
+calc_lx <- function(qx, radix = 1e5){
+  n  <- length(qx)
+  lx <- c(1, cumprod(1 - qx))
+  lx <- lx[1:n]
+  lx <- radix * lx
+  return(lx)
+}
+```
+
+
+```{r}
 D |> 
+  group_by(year, sex) |> 
   mutate(ax = mx_to_ax(mx = mx, 
                        sex = sex, 
                        age = age),
          qx = calc_qx(mx = mx, 
                       ax = ax, 
-                      age = age))
+                      age = age),
+         lx = calc_lx(qx = qx, radix = 1e5),
+         dx = lx * qx)
 ```
+
+
+
+
+
+
 
 
 
