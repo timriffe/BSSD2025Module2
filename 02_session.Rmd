@@ -66,22 +66,41 @@ calc_lx <- function(qx, radix = 1e5){
 ```{r}
 D |> 
   group_by(year, sex) |> 
-  mutate(ax = mx_to_ax(mx = mx, 
+  fill(mx, .direction = "down") |> 
+  mutate(mx = if_else(mx == 0,  .4, mx),
+         ax = mx_to_ax(mx = mx, 
                        sex = sex, 
                        age = age),
          qx = calc_qx(mx = mx, 
                       ax = ax, 
                       age = age),
          lx = calc_lx(qx = qx, radix = 1e5),
-         dx = lx * qx)
+         dx = lx * qx) |> 
+  summarize(e0 = sum(dx * (age + ax)) / sum(dx)) |> 
+  ggplot(aes(x = year, y = e0, color = sex)) +
+  geom_line()
 ```
 
 
+# exercises
+Complete the lifetable by implementing these formulas:
 
+Lx is what we all "lifetable exposure", person years lived in each age interval. If $a_x$ is .5 then this amounts to the trapezoid rule for discrete integration. But in ages 0 and 110 it isn't .5!
+$$ L_x = \ell_x - (1 - a_x) \cdot d_x $$
 
+Be sure that the last value of Lx is right:
+$$ L_{110} = \ell_{110} \cdot a_{110}$$
 
+Then an intermediate column:
 
+$$ T_x = \sum_x^{110} L_x$$
+This one is tricky to program. It's all the lifetable person-years lived beyond age x.
 
+And finally remaining life expectancy, which has a value in each age, not just age 0:
+
+$$ e_x = \frac{T_x}{\ell_x}$$
+
+Now calculate the full lifetables for all subsets :-)
 
 
 
