@@ -1,0 +1,77 @@
+---
+title: "Session 2 Notes"
+author: "Tim Riffe"
+date: "2025-07-08"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# get the data:
+
+We got these by right-clicking the "raw" button on github and copying the urls from the menu (not from the browser)
+```{r}
+library(tidyverse)
+library(janitor)
+D <- read_csv("https://github.com/timriffe/BSSD2025Module2/raw/refs/heads/master/data/ES_mort.csv.gz",show_col_types = FALSE) |> 
+  clean_names()
+```
+
+# Calculate probabilities
+
+So, we can use a value like .5 for $a_x$ in most ages, but not age 0 or in the open age group.
+
+```{r}
+mx_to_ax <- function(mx, sex, age){
+  ax <-
+    case_when(
+    age == 0 & sex == "male" & mx < 0.02300 ~ 0.14929 - 1.99545 * mx,
+    age == 0 & sex == "male" & mx >= 0.02300 & mx < 0.08307 ~ 0.02832 + 3.26021 * mx,
+    age == 0 & sex == "male" & mx >= 0.08307 ~ 0.29915,
+    age == 0 & sex == "female" & mx < 0.01724 ~ 0.14903 - 2.05527 * mx,
+    age == 0 & sex == "female" & mx >= 0.01724 & mx < 0.06891 ~ 0.04667 + 3.88089 * mx,
+    age == 0 & sex == "female" & mx >= 0.06891 ~ 0.31411,
+    age == max(age) ~ 1 / mx,
+    TRUE ~ .5)
+  return(ax)
+}
+```
+$$ q_x = \frac{m_x}{1 +(1 - a_x) \cdot m_x}$$
+Now let's use it to calculate qx
+```{r}
+calc_qx <- function(mx, ax, age){
+  qx <- mx / (1 + (1 - ax) * mx)
+  qx <- if_else(age == max(age), 1, qx)
+  return(qx)
+}
+
+D |> 
+  mutate(ax = mx_to_ax(mx = mx, 
+                       sex = sex, 
+                       age = age),
+         qx = calc_qx(mx = mx, 
+                      ax = ax, 
+                      age = age))
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

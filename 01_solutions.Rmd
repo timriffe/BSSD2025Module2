@@ -48,6 +48,7 @@ $$ GFR = 1000 \cdot \frac{\sum_{15}^{49}B_x}{\sum_{15}^{49}E_x} $$
 gfr <- 
   Fx |> 
   filter(between(age,15,49)) |> 
+  #filter(age >= 15 & age <= 49)
   group_by(year) |> 
   summarize(GFR = 1000 * sum(births)/sum(exposure)) 
 ```
@@ -58,20 +59,16 @@ gfr |>
   geom_line()
 ```
 
-
-
 Why not 1975? The deviation in TFR is indeed small; this is coming from the HMD documentation, where we see that there was a universe definition change in that year, which stifles exposure calculations. The HMD has a slick way to account for this, but we don't have the info handy that we'd need.
 
 ```{r}
 TFR <- 
   Fx |> 
   group_by(year) |> 
-  mutate(Fx = births / exposure) |> 
   summarize(TFR = sum(Fx)) 
 TFR |> 
   ggplot(aes(x = year, y = TFR)) +
-  geom_line() +
-  geom_point(data = TFR |> filter(year == 1975), color = "red", size = 2)
+  geom_line() 
 ```
 
 # 3. Make a plot of age-specific fertility rates
@@ -79,21 +76,27 @@ TFR |>
 examples
 ```{r}
 Fx |> 
-  filter(year %in% c(2000,2010, 2021)) |> 
-  ggplot(aes(x= age, y = Fx, color = as.factor(year))) +
-  geom_line()
+  #filter(year %in% c(2000,2010, 2021)) |>
+  filter(year > 1990) |> 
+  ggplot(aes(x= age, y = Fx, color = year, group = year)) +
+  geom_line(alpha = .6)
 ```
 # 4. Calculate TFR
 I'll just pipe it straight to a plot
 ```{r}
 Fx |> 
   group_by(year) |> 
-  summarize(TFR = sum(Fx)) |> 
+  summarize(TFR = sum(Fx),
+            B = sum(births)) |> 
   ggplot(aes(x = year, y = TFR)) +
-  geom_line()
+  geom_line() +
+  geom_vline(xintercept = c(1936,1939))
 ```
 
 5. calculate  MAB
+
+$$ MAB = \frac{\sum F_x \cdot (x + .5)}{\sum F_x}$$
+
 
 ```{r}
 mab <-
@@ -108,7 +111,8 @@ mab |>
   pivot_longer(c(MABfx,MABb),names_to = "variant", values_to = "MAB") |> 
   ggplot(aes(x = year, y = MAB, color = variant)) +
   geom_line() +
-  theme_minimal() 
+  theme_minimal() +
+  geom_vline(xintercept = c(1936,1939))
 ```
 
 Curious how MAB and TFR move together?
