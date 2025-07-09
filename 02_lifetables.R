@@ -70,3 +70,39 @@ lt_full <- function(data, radix = 1, groups){
       ex = Tx / lx) 
   return(out)
 }
+
+
+lt_full2 <- function(age, mx, radix = 1, sex){
+      .sex <- sex[1]
+      nx = c(diff(age),1)
+      ax = mx_to_ax(mx = mx, 
+                    sex =  .sex, 
+                    age = age,
+                    nx = nx)
+      qx = calc_qx(mx = mx, 
+                   ax = ax, 
+                   age = age,
+                   nx = nx)
+      lx = calc_lx(qx = qx, radix = radix)
+      dx = lx * qx
+      Lx = calc_Lx(lx = lx,
+                   ax = ax,
+                   dx = dx,
+                   nx = nx)
+      Tx = calc_Tx(Lx)
+      ex = Tx / lx
+ 
+    out <- tibble(age = age,
+             nx = nx,
+             mx = mx,
+             ax = ax,
+             qx = qx,
+             lx = lx,
+             dx = dx,
+             Tx = Tx,
+             ex = ex)
+    
+    return(out)
+      
+}
+

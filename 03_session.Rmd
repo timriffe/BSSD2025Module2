@@ -1,0 +1,81 @@
+---
+title: "session 3 notes"
+author: "Tim Riffe"
+date: "2025-07-09"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# usage of new lifetable function, `lt_full()`
+
+To load, you can source straight from github like so:
+```{r}
+library(tidyverse)
+library(janitor)
+source("https://raw.githubusercontent.com/timriffe/BSSD2025Module2/refs/heads/master/02_lifetables.R")
+```
+
+To use, you need to group your data
+```{r}
+D <- read_csv("https://github.com/timriffe/BSSD2025Module2/raw/refs/heads/master/data/ES_mort.csv.gz",show_col_types = FALSE) |> 
+  clean_names()
+
+D |> 
+  mutate(mx = if_else(is.na(mx) | mx == 0, .5, mx)) |> 
+  filter(sex != "total") |> 
+  group_by(year, sex) |> 
+  group_modify(~lt_full(data= .x, groups = .y))
+```
+
+
+# calculate all WPP lifetables:
+
+load it:
+```{r}
+wpp <- 
+  read_csv("https://github.com/timriffe/BSSD2025Module2/raw/refs/heads/master/data/mxwpp.csv.gz", show_col_types = FALSE)
+```
+
+Now calculate lifetable for each subset (year, sex, location)
+
+```{r}
+wpp_lt <-
+  wpp |> 
+  mutate(sex = if_else(sex == "m","male","female")) |> 
+  group_by(un_code, year, sex) |> 
+  reframe(lt_full2(age = age, 
+                   mx = mx, 
+                   sex = sex,
+                   radix = 1e5))
+```
+
+#
+
+```{r}
+#install.packages("countrycode")
+library(countrycode)
+wpp_lt |> 
+  mutate(iso = countrycode(sourcevar = un_code, 
+            origin = "un", 
+            destination = "iso3c")) |> 
+  filter(!is.na(iso))
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
