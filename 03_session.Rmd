@@ -197,20 +197,56 @@ In practice age-standardization is most common in the literature in spatial epid
 
 # Decomposition
 
-Pick out two subsets from the WPP
+Let's read in some new data :-)
 ```{r}
+library(readxl)
+ghana <- read_excel("data/Ghana sampleData.xlsx")
+ghalt <-
+ghana |> 
+  clean_names() |> 
+  select(age_group, male_pop, female_pop, 
+         male_deaths, female_deaths) |> 
+  mutate(male = male_deaths / male_pop,
+         female = female_deaths / female_pop) |> 
+  select(age_group, male, female) |> 
+  pivot_longer(c(male, female), names_to = "sex", values_to = "mx") |> 
+  mutate(age = if_else(age_group == "<1",0, parse_number(age_group))) |> 
+  arrange(sex, age) |> 
+  group_by(sex) |> 
+  group_modify(~lt_full(data = .x, groups = .y)) 
 
+# wpp_iso |> 
+#   filter(year == 2021, iso == "GHA", age == 0)
 ```
 
+Life expectancy differences MUST be due to differences in age-specific rates
 
+```{r}
+ghalt |> 
+  select(age, sex, mx) |> 
+  pivot_wider(names_from = sex, values_from = mx) |> 
+  mutate(ratio = male / female) |> 
+  ggplot(aes(x = age, y = ratio)) +
+  geom_line() +
+  scale_y_log10()
+```
 
+The difference in life expectancy at birth, $\Delta$
+$$ \Delta = e_0^f - e_0^m  $$
 
+$$ e_0 = f(m_x) $$
 
+Additivity of age-specific contributions
+$$ \Delta = \sum \delta_x$$
 
+$$ \mathbf{\delta}  = \mathcal{D}(f(),m_x^f, m_x^m)$$
 
+The fancy D can be any kind of decomposition approach. For the case of life expectancy there are some that are based on tranformations of lifetable columns. For example, Arriaga or Chandrasekaran. Or you could take a totally different approach.
 
+$$ e_0 = f(m_x) $$
+$$ s(f(), m_x) $$
 
-
+$$ \delta = s(f(), \bar{m_x}) \cdot (m_x^m - m_x^f)$$
 
 
 
