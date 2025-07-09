@@ -11,6 +11,7 @@ html_table(seer_page)%>%'[['(1) |>
   mutate(pop = gsub(",","",pop) |> as.integer()) |> 
   group_by(standard) |> 
   mutate(pop = pop / sum(pop)) |> 
+  arrange(standard, age) |> 
   write_csv("data/standards_abridged.csv")
 
 

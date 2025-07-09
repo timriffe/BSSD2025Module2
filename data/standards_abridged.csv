@@ -1,101 +1,101 @@
 age,standard,pop
 0,2000 U.S. Standard Population (Census P25-1130),0.013818048555027355
-0,World (WHO 2000-2025) Standard,0.017917
-0,2011 Canadian Standard Population,0.01095779083696777
-0,2021 Canadian Standard Population,0.009485520136787098
-0,European (EU-27 plus EFTA 2011-2030) Std Million,0.01
 1,2000 U.S. Standard Population (Census P25-1130),0.0553159434123515
-1,World (WHO 2000-2025) Standard,0.070652
-1,2011 Canadian Standard Population,0.04433953803390407
-1,2021 Canadian Standard Population,0.04027624156822315
-1,European (EU-27 plus EFTA 2011-2030) Std Million,0.04
 5,2000 U.S. Standard Population (Census P25-1130),0.07253241028642805
-5,World (WHO 2000-2025) Standard,0.08687
-5,2011 Canadian Standard Population,0.05271655352304036
-5,2021 Canadian Standard Population,0.05419906828120519
-5,European (EU-27 plus EFTA 2011-2030) Std Million,0.055
 10,2000 U.S. Standard Population (Census P25-1130),0.07303103455912367
-10,World (WHO 2000-2025) Standard,0.08597
-10,2011 Canadian Standard Population,0.055853486526134456
-10,2021 Canadian Standard Population,0.0552830418016131
-10,European (EU-27 plus EFTA 2011-2030) Std Million,0.055
 15,2000 U.S. Standard Population (Census P25-1130),0.07216711636515384
-15,World (WHO 2000-2025) Standard,0.08467
-15,2011 Canadian Standard Population,0.06519425625997663
-15,2021 Canadian Standard Population,0.05386983070860294
-15,European (EU-27 plus EFTA 2011-2030) Std Million,0.055
 20,2000 U.S. Standard Population (Census P25-1130),0.06647847243710951
-20,World (WHO 2000-2025) Standard,0.082171
-20,2011 Canadian Standard Population,0.06855455498943301
-20,2021 Canadian Standard Population,0.06287674035660797
-20,European (EU-27 plus EFTA 2011-2030) Std Million,0.06
 25,2000 U.S. Standard Population (Census P25-1130),0.06452984736662379
-25,World (WHO 2000-2025) Standard,0.079272
-25,2011 Canadian Standard Population,0.06900550858142526
-25,2021 Canadian Standard Population,0.06994415565913101
-25,European (EU-27 plus EFTA 2011-2030) Std Million,0.06
 30,2000 U.S. Standard Population (Census P25-1130),0.07104508339877749
-30,World (WHO 2000-2025) Standard,0.076073
-30,2011 Canadian Standard Population,0.06778586357889489
-30,2021 Canadian Standard Population,0.0707116531585991
-30,European (EU-27 plus EFTA 2011-2030) Std Million,0.065
 35,2000 U.S. Standard Population (Census P25-1130),0.08076197744193335
-35,World (WHO 2000-2025) Standard,0.071475
-35,2011 Canadian Standard Population,0.06618820607999702
-35,2021 Canadian Standard Population,0.06912056486393361
-35,European (EU-27 plus EFTA 2011-2030) Std Million,0.07
 40,2000 U.S. Standard Population (Census P25-1130),0.08185169462960405
-40,World (WHO 2000-2025) Standard,0.065877
-40,2011 Canadian Standard Population,0.0694736419125068
-40,2021 Canadian Standard Population,0.06551414513398897
-40,European (EU-27 plus EFTA 2011-2030) Std Million,0.07
 45,2000 U.S. Standard Population (Census P25-1130),0.07211714069611326
-45,World (WHO 2000-2025) Standard,0.060379
-45,2011 Canadian Standard Population,0.07919885926532447
-45,2021 Canadian Standard Population,0.06228468804177755
-45,European (EU-27 plus EFTA 2011-2030) Std Million,0.07
 50,2000 U.S. Standard Population (Census P25-1130),0.06271758577923968
-50,World (WHO 2000-2025) Standard,0.053681
-50,2011 Canadian Standard Population,0.0783646519006324
-50,2021 Canadian Standard Population,0.063487934998932
-50,European (EU-27 plus EFTA 2011-2030) Std Million,0.07
 55,2000 U.S. Standard Population (Census P25-1130),0.048454493422914295
-55,World (WHO 2000-2025) Standard,0.045484
-55,2011 Canadian Standard Population,0.06851774958229939
-55,2021 Canadian Standard Population,0.07035874918383601
-55,European (EU-27 plus EFTA 2011-2030) Std Million,0.065
 60,2000 U.S. Standard Population (Census P25-1130),0.038794489715138394
-60,World (WHO 2000-2025) Standard,0.037187
-60,2011 Canadian Standard Population,0.05970521314814933
-60,2021 Canadian Standard Population,0.06832995012743769
-60,European (EU-27 plus EFTA 2011-2030) Std Million,0.06
 65,2000 U.S. Standard Population (Census P25-1130),0.034263609991378986
-65,World (WHO 2000-2025) Standard,0.02959
-65,2011 Canadian Standard Population,0.044636456338129876
-65,2021 Canadian Standard Population,0.05822437025403647
-65,European (EU-27 plus EFTA 2011-2030) Std Million,0.055
 70,2000 U.S. Standard Population (Census P25-1130),0.03177168658747205
-70,World (WHO 2000-2025) Standard,0.022092
-70,2011 Canadian Standard Population,0.03359722189059826
-70,2021 Canadian Standard Population,0.04826845095474189
-70,European (EU-27 plus EFTA 2011-2030) Std Million,0.05
 75,2000 U.S. Standard Population (Census P25-1130),0.026997999757072733
-75,World (WHO 2000-2025) Standard,0.015195
-75,2011 Canadian Standard Population,0.026769469448891442
-75,2021 Canadian Standard Population,0.03327258172257098
-75,European (EU-27 plus EFTA 2011-2030) Std Million,0.04
 80,2000 U.S. Standard Population (Census P25-1130),0.017842803104216928
-80,World (WHO 2000-2025) Standard,0.009097
-80,2011 Canadian Standard Population,0.02041593604245201
-80,2021 Canadian Standard Population,0.02200407930321091
-80,European (EU-27 plus EFTA 2011-2030) Std Million,0.025
 85,2000 U.S. Standard Population (Census P25-1130),0.00975323700510078
-85,World (WHO 2000-2025) Standard,0.004398
-85,2011 Canadian Standard Population,0.01242587233765001
-85,2021 Canadian Standard Population,0.013634881128238322
-85,European (EU-27 plus EFTA 2011-2030) Std Million,0.015
 90,2000 U.S. Standard Population (Census P25-1130),0.00575532548922029
-90,World (WHO 2000-2025) Standard,0.00195
+0,2011 Canadian Standard Population,0.01095779083696777
+1,2011 Canadian Standard Population,0.04433953803390407
+5,2011 Canadian Standard Population,0.05271655352304036
+10,2011 Canadian Standard Population,0.055853486526134456
+15,2011 Canadian Standard Population,0.06519425625997663
+20,2011 Canadian Standard Population,0.06855455498943301
+25,2011 Canadian Standard Population,0.06900550858142526
+30,2011 Canadian Standard Population,0.06778586357889489
+35,2011 Canadian Standard Population,0.06618820607999702
+40,2011 Canadian Standard Population,0.0694736419125068
+45,2011 Canadian Standard Population,0.07919885926532447
+50,2011 Canadian Standard Population,0.0783646519006324
+55,2011 Canadian Standard Population,0.06851774958229939
+60,2011 Canadian Standard Population,0.05970521314814933
+65,2011 Canadian Standard Population,0.044636456338129876
+70,2011 Canadian Standard Population,0.03359722189059826
+75,2011 Canadian Standard Population,0.026769469448891442
+80,2011 Canadian Standard Population,0.02041593604245201
+85,2011 Canadian Standard Population,0.01242587233765001
 90,2011 Canadian Standard Population,0.006299169723592557
+0,2021 Canadian Standard Population,0.009485520136787098
+1,2021 Canadian Standard Population,0.04027624156822315
+5,2021 Canadian Standard Population,0.05419906828120519
+10,2021 Canadian Standard Population,0.0552830418016131
+15,2021 Canadian Standard Population,0.05386983070860294
+20,2021 Canadian Standard Population,0.06287674035660797
+25,2021 Canadian Standard Population,0.06994415565913101
+30,2021 Canadian Standard Population,0.0707116531585991
+35,2021 Canadian Standard Population,0.06912056486393361
+40,2021 Canadian Standard Population,0.06551414513398897
+45,2021 Canadian Standard Population,0.06228468804177755
+50,2021 Canadian Standard Population,0.063487934998932
+55,2021 Canadian Standard Population,0.07035874918383601
+60,2021 Canadian Standard Population,0.06832995012743769
+65,2021 Canadian Standard Population,0.05822437025403647
+70,2021 Canadian Standard Population,0.04826845095474189
+75,2021 Canadian Standard Population,0.03327258172257098
+80,2021 Canadian Standard Population,0.02200407930321091
+85,2021 Canadian Standard Population,0.013634881128238322
 90,2021 Canadian Standard Population,0.008853352616526042
+0,European (EU-27 plus EFTA 2011-2030) Std Million,0.01
+1,European (EU-27 plus EFTA 2011-2030) Std Million,0.04
+5,European (EU-27 plus EFTA 2011-2030) Std Million,0.055
+10,European (EU-27 plus EFTA 2011-2030) Std Million,0.055
+15,European (EU-27 plus EFTA 2011-2030) Std Million,0.055
+20,European (EU-27 plus EFTA 2011-2030) Std Million,0.06
+25,European (EU-27 plus EFTA 2011-2030) Std Million,0.06
+30,European (EU-27 plus EFTA 2011-2030) Std Million,0.065
+35,European (EU-27 plus EFTA 2011-2030) Std Million,0.07
+40,European (EU-27 plus EFTA 2011-2030) Std Million,0.07
+45,European (EU-27 plus EFTA 2011-2030) Std Million,0.07
+50,European (EU-27 plus EFTA 2011-2030) Std Million,0.07
+55,European (EU-27 plus EFTA 2011-2030) Std Million,0.065
+60,European (EU-27 plus EFTA 2011-2030) Std Million,0.06
+65,European (EU-27 plus EFTA 2011-2030) Std Million,0.055
+70,European (EU-27 plus EFTA 2011-2030) Std Million,0.05
+75,European (EU-27 plus EFTA 2011-2030) Std Million,0.04
+80,European (EU-27 plus EFTA 2011-2030) Std Million,0.025
+85,European (EU-27 plus EFTA 2011-2030) Std Million,0.015
 90,European (EU-27 plus EFTA 2011-2030) Std Million,0.01
+0,World (WHO 2000-2025) Standard,0.017917
+1,World (WHO 2000-2025) Standard,0.070652
+5,World (WHO 2000-2025) Standard,0.08687
+10,World (WHO 2000-2025) Standard,0.08597
+15,World (WHO 2000-2025) Standard,0.08467
+20,World (WHO 2000-2025) Standard,0.082171
+25,World (WHO 2000-2025) Standard,0.079272
+30,World (WHO 2000-2025) Standard,0.076073
+35,World (WHO 2000-2025) Standard,0.071475
+40,World (WHO 2000-2025) Standard,0.065877
+45,World (WHO 2000-2025) Standard,0.060379
+50,World (WHO 2000-2025) Standard,0.053681
+55,World (WHO 2000-2025) Standard,0.045484
+60,World (WHO 2000-2025) Standard,0.037187
+65,World (WHO 2000-2025) Standard,0.02959
+70,World (WHO 2000-2025) Standard,0.022092
+75,World (WHO 2000-2025) Standard,0.015195
+80,World (WHO 2000-2025) Standard,0.009097
+85,World (WHO 2000-2025) Standard,0.004398
+90,World (WHO 2000-2025) Standard,0.00195
