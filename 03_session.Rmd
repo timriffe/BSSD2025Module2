@@ -139,6 +139,74 @@ wpp_iso |>
   pivot_wider(names_from = decade, values_from = pace)
 ```
 
+```{r}
+wpp_iso |> 
+  filter(age == 0,
+         year < 2020,
+         sex == "female") |> 
+  mutate(continent = countrycode(iso, 
+                                 origin = "iso3c", 
+                                 destination = "continent")) |> 
+  ggplot(aes(x = year, y = ex, group = iso, color= continent)) +
+  geom_line(alpha = .3)
+```
+
+# let's standardize
+
+Recall the formula for a weighted mean:
+
+$$ \bar{x} = \frac{\sum x_i \cdot w_i}{\sum w_i} $$
+
+```{r}
+standards <- read_csv("https://raw.githubusercontent.com/timriffe/BSSD2025Module2/refs/heads/master/data/standards_abridged.csv", show_col_types = FALSE)
+
+standards |> 
+  group_by(standard) |> 
+  mutate(n = c(diff(age),1)) |> 
+  ungroup() |> 
+  filter(grepl(standard, pattern = "World") | grepl(standard, pattern = "European")) |> 
+  ggplot(aes(x = age, y = pop / n, color = standard)) +
+  geom_step()
+```
+
+$$ \bar{x} = \frac{\sum x_i \cdot w_i}{\sum w_i} $$
+
+First, pick out a standard, then discount the values from abridged ages to what they would be for single ages. Easiest to just assume a constant weight in each age group. It's OK since it's just used for weighting. In our case, just take care that the open age group extends as far as needed in the wpp data (up to 100+ rather than 90+)
+```{r}
+world_standard <-
+  standards |> 
+  filter(grepl(standard, pattern = "World")) |> 
+  mutate(n = c(diff(age),11),
+         w = pop / n) |> 
+  rename(age_abr = age) |> 
+  select(age_abr, w)
+```
+
+Now we need to figure out which abridged age each single age falls within. This three-step processing (`if_else()`) could be reframed as a `case_when()` call, but my mind isn't there right now, sry. Then we're ready to merge the standard to the wpp lifetables using the new `age_abr` column. The age-standardized death rates are then the weighted mean of age-specific death weights using the standard as the weights (`w`).
+```{r}
+wpp_iso |> 
+  mutate(age_abr = age - age %% 5,
+         age_abr = if_else(between(age,1,4),1,age_abr),
+         age_abr = if_else(age >= 90, 90, age_abr)) |> 
+  left_join(world_standard, by = join_by(age_abr)) |> 
+  group_by(iso, sex, year) |> 
+  summarize(sdr  = 1000 * sum(mx * w))
+```
+
+In practice age-standardization is most common in the literature in spatial epidemiology, where the values usually end up on choropleth maps (color maps). Although this does a good job of picking out high vs low, using the rate scale as the unit of reporting is still IMO coming too short vis what could be done.
+
+# Decomposition
+
+Pick out two subsets from the WPP
+```{r}
+
+```
+
+
+
+
+
+
 
 
 
