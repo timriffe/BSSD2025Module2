@@ -24,6 +24,8 @@ mx_to_ax <- function(mx, sex, age){
       age == 0 & sex == "female" & mx >= 0.06891 ~ 0.31411,
       age == max(age) ~ 1 / mx,
       TRUE ~ .5)
+  # NEW
+  ax[ax == 0] <- .5
   return(ax)
 }
 
@@ -31,6 +33,11 @@ mx_to_ax <- function(mx, sex, age){
 calc_qx <- function(mx, ax, age){
   qx <- mx / (1 + (1 - ax) * mx)
   qx <- if_else(age == max(age), 1, qx)
+  
+  # NEW hacks to ensure legality
+  qx[qx < 0] <- 0
+  qx[qx > 1] <- 1
+  
   return(qx)
 }
 
