@@ -91,7 +91,7 @@ wpp_lt <-
 #install.packages("countrycode")
 library(countrycode)
 wpp_iso <-
-wpp_lt |> 
+  wpp_lt |> 
   mutate(iso = countrycode(sourcevar = un_code, 
             origin = "un", 
             destination = "iso3c")) |> 
@@ -100,15 +100,50 @@ wpp_lt |>
 ```
 ```{r}
 wpp_iso |> 
-  filter(year < 2023) |> 
+  filter(year < 2023,
+         year %% 10 == 0) |> 
   ggplot(aes(x = age, y = mx, group = interaction(year,iso))) +
   geom_line(alpha = .05) +
   scale_y_log10() +
   facet_wrap(~sex)
 ```
 
+# 
 
-#
+1. use `countrycode` package to add a column for `continent`
+2. create a column called `decade`.
+```{r}
+year <- 1950:2020
+decade <- year - year %% 10
+```
+3. use this helper function to estimate a slope of increase in life expectancy at birth, for each decade and continent. Tip: use `summarize()`
+```{r}
+slope_helper <- function(year, e0){
+  coefs <- lm(e0~year) |> coef()
+  coefs["year"]
+}
+```
+4. display result as a table with decades in columns and continents in rows
+
+```{r}
+wpp_iso |> 
+  mutate(continent = countrycode(iso, 
+                                 origin = "iso3c", 
+                                 destination = "continent"),
+         decade = year - year %% 10) |> 
+  filter(age == 0, year < 2020) |> 
+  group_by(decade, continent) |> 
+  summarize(pace = slope_helper(year = year, e0 = ex),
+            .groups = "drop") |> 
+  mutate(pace = round(pace,2)) |> 
+  pivot_wider(names_from = decade, values_from = pace)
+```
+
+
+
+
+
+
 
 
 
