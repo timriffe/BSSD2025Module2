@@ -1,0 +1,107 @@
+---
+title: "session 2 exercise solutions"
+author: "Tim Riffe"
+date: "2024-07-10"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# functions defined in session:
+
+```{r}
+# function based on table in HMD methods protocol
+mx_to_ax <- function(mx, sex, age){
+  ax <-
+    case_when(
+      age == 0 & sex == "male" & mx < 0.02300 ~ 0.14929 - 1.99545 * mx,
+      age == 0 & sex == "male" & mx >= 0.02300 & mx < 0.08307 ~ 0.02832 + 3.26021 * mx,
+      age == 0 & sex == "male" & mx >= 0.08307 ~ 0.29915,
+      age == 0 & sex == "female" & mx < 0.01724 ~ 0.14903 - 2.05527 * mx,
+      age == 0 & sex == "female" & mx >= 0.01724 & mx < 0.06891 ~ 0.04667 + 3.88089 * mx,
+      age == 0 & sex == "female" & mx >= 0.06891 ~ 0.31411,
+      age == max(age) ~ 1 / mx,
+      TRUE ~ .5)
+  return(ax)
+}
+
+# standard qx calculation
+calc_qx <- function(mx, ax, age){
+  qx <- mx / (1 + (1 - ax) * mx)
+  qx <- if_else(age == max(age), 1, qx)
+  return(qx)
+}
+
+# cumprod() makes our synthetic cohort :-),
+# if radix = 1, this is the probability of surviving from birth to age x
+# radix = 1e5 means you have 1e5 lemmings/sims
+calc_lx <- function(qx, radix = 1e5){
+  n  <- length(qx)
+  lx <- c(1, cumprod(1 - qx))
+  lx <- lx[1:n]
+  lx <- radix * lx
+  return(lx)
+}
+```
+
+# make function for $L_x$
+$$ L_x = \ell_x - (1 - a_x) \cdot d_x $$
+```{r}
+calc_Lx <- function(lx,ax,dx){
+  n <- length(lx)
+  Lx <- lx - (1 - ax) * dx
+  Lx[n] <- lx[n] * ax[n]
+  return(Lx)
+}
+```
+
+# make function for $T_x$
+
+$$ e_x = \frac{T_x}{\ell_x}$$
+```{r}
+calc_Tx <- function(Lx){
+  Tx <- rev(Lx) |> cumsum() |> rev()
+}
+# or:
+# calc_Tx <- function(Lx){
+#   sum(Lx) - cumsum(c(0,Lx[-length(Lx)]))
+# }
+```
+
+# calc $e_x$
+
+This is a 1-liner, no need for function
+
+# use altogether in `mutate()`
+
+```{r, message =FALSE}
+library(tidyverse)
+library(janitor)
+D <- read_csv("https://github.com/timriffe/BSSD2025Module2/raw/refs/heads/master/data/ES_mort.csv.gz",show_col_types = FALSE) |> 
+  clean_names()
+D |> 
+  group_by(year, sex) |> 
+  fill(mx, .direction = "down") |> 
+  mutate(mx = if_else(mx == 0,  .4, mx),
+         ax = mx_to_ax(mx = mx, 
+                       sex = sex, 
+                       age = age),
+         qx = calc_qx(mx = mx, 
+                      ax = ax, 
+                      age = age),
+         lx = calc_lx(qx = qx, radix = 1e5),
+         dx = lx * qx,
+         Lx = calc_Lx(lx = lx,
+                      ax = ax,
+                      dx = dx),
+         Tx = calc_Tx(Lx),
+         ex = Tx / lx) |> 
+  filter(age == 0) |> 
+  ggplot(aes(x = year, y = ex, color = sex)) +
+  geom_line()
+```
+
+
+
