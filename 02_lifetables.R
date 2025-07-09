@@ -46,7 +46,7 @@ calc_Tx <- function(Lx){
 # (too simplified for actual production use)
 # but it's good enough for anything we're doing.
 
-lt_full <- function(data, radix = 1){
+lt_full <- function(data, radix = 1, groups){
    out <-
     data |> 
     mutate(
@@ -54,7 +54,7 @@ lt_full <- function(data, radix = 1){
       nx = c(diff(age),1),
       mx = if_else(is.na(mx),.5,mx),
       ax = mx_to_ax(mx = mx, 
-                    sex = sex, 
+                    sex = groups$sex, 
                     age = age,
                     nx = nx),
       qx = calc_qx(mx = mx, 

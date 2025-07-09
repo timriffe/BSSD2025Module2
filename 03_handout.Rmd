@@ -54,7 +54,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Summary
 
-Today we'll look at ways to make data more comparable (standardization) and ways to explain differences between summary measures (decomposition). As per the previous days, this material was originally prepared by the one-and-only Marie-Pier Bergeron-Boucher, credit is due to her for organizing the logic and rigor of this lesson. My contributions have been light edits to the text, occasional insertions where I though they would help, and doing an full overhaul of the code to a tidy approach.
+Today we'll look at ways to make data more comparable (standardization) and ways to explain differences between summary measures (decomposition). As per the previous days, this material was originally prepared by the one-and-only Marie-Pier Bergeron-Boucher, credit is due to her for organizing the logic and rigor of this lesson. My contributions have been light edits to the text, occasional insertions where I though they would help, doing a full overhaul of the code to a tidy approach, and in considering extra decomposition methods.
 
 # Data
 
@@ -356,12 +356,16 @@ The Arriaga method [@arriaga1984measuring] is designed to decompose a _change_ i
 The method is usually expressed using survival probabilities ($l_x$) and person-years ($_nL_x$ and $T_x$) in the life table as the primary ingredients. We will calculate a lifetable using tools we created in the second session.
 
 ```{r}
-source("https://raw.githubusercontent.com/timriffe/BSSD2024Module2/master/02_lifetables.R")
+#source("https://raw.githubusercontent.com/timriffe/BSSD2025Module2/master/02_lifetables.R")
+source("02_lifetables.R")
 LT <- 
   DAT |> 
-  filter(year == 2014, sex == "total") |> 
-  group_by(country) |> 
-  group_modify(~LT_tidy(data = .x)) |> 
+  filter(sex != "total") |> 
+  # necessary hacks; better than this = smooth data
+  mutate(mx = if_else(exposure == 0, 1, mx),
+         mx = if_else(mx == 0,.5,mx)) |> 
+  group_by(country, year, sex) |> 
+  group_modify(~lt_full(data = .x, groups = .y)) |> 
   ungroup()  
 ```
 
@@ -371,8 +375,8 @@ The difference in life expectancy between Japan and Taiwan is greater than 4 yea
 ```{r message=F, warning=F}
 #step 2: find the difference in life expectancy
 LT |> 
-  filter(age == 0) |> 
-  select(country, ex)
+  filter(age == 0, year == 1990, sex == "female") |> 
+  select(country, year, sex,ex)
 ```
 
 Let's select just the columns we'll need, and move them side by side, like before:
@@ -380,6 +384,7 @@ Let's select just the columns we'll need, and move them side by side, like befor
 ```{r}
 LT_arriaga <-
   LT |> 
+  filter( year == 1990, sex == "female") |> 
   mutate(country = substr(country, 1,1) |> tolower()) |> 
   select(country, age, lx, Lx, Tx) |> 
   pivot_wider(names_from = country, values_from = c(lx, Lx, Tx))
@@ -465,14 +470,15 @@ It will be convenient to implement the Arriaga steps into a function, for the sa
 
 ```{r, eval = FALSE}
 library(remotes)
-install_github("timriffe/coddecomp")
+install_github("timriffe/LEdecomp")
 ```
 
-In this package, everything is a fucntion of rates (yay!), because recall, the three lifetable columns used in the Arriaga method can each be derived from rates, voila:
+In this package, everything is a function of rates (yay!), because recall, the three lifetable columns used in the Arriaga method can each be derived from rates, voila:
 ```{r}
-library(coddecomp)
+library(LEdecomp)
 directional <-
   LT |> 
+  filter( year == 1990, sex == "female") |> 
   select(country, sex, age, mx) |> 
   pivot_wider(names_from = country, values_from = mx) |>
   group_by(sex) |> 
@@ -507,6 +513,7 @@ Actually the same package has a function for doing exactly this:
 
 ```{r}
 LT |> 
+  filter( year == 1990, sex == "female") |> 
   select(country, sex, age, mx) |> 
   pivot_wider(names_from = country, values_from = mx) |>
   group_by(sex) |> 
@@ -524,7 +531,7 @@ LT |>
 
 
 # Generalized decomposition
-Kitagawa decomposition is applicable to quantities calculated as weighted means, for example where the weights might differ in the groups compared. Arriaga decomposition works with life tables and life expectancy, and so we call it a *bespoke* decomposition. That means that an analytic solution has been derived for these settings that allows for the decomposition to be directly calculated. 
+Kitagawa decomposition is applicable to quantities calculated as weighted means, for example where the weights might differ in the groups compared. Arriaga decomposition works with life tables and life expectancy, and so I call it a *bespoke* analytic decomposition. That means that an direct solution has been derived for these settings that allows for the decomposition to be calculated. 
 
 A generalized decomposition method is one that applied *any* deterministic function of parameters that produces some synthetic measure based on them. For example, in the case of Kitagawa the parameters are a vector of age structure and demographic rates. To do a life expectancy decomposition with a generalized method, you need a function that converts rates to life expectancy (not the whole lifetable).
 
@@ -539,13 +546,13 @@ Three generalized methods are
 All three of these are implemented in the `DemoDecomp` `R` package (@DemoDecomp), with the functions `ltre()`, `stepwise_replacement()`, and `horiuchi()`. There's no paper really comparing them, but here's Tim's hand-wavy explanation of their differences:
 
 ## LTRE `ltre()`
-This method numerically calculates the partial derivatives of your function's parameters half way between the first and second set of parameters, then multiplies them by the observed difference in each parameter. This is a decent approximation of the contribution of each parameter to the difference in the quantity calculated. This method can be blazing fast if you have an analytic partial derivative function on hand.
+This method numerically calculates the partial derivatives of your function's parameters half way between the first and second set of parameters, then multiplies them by the observed difference in each parameter. This is a decent approximation of the contribution of each parameter to the difference in the quantity calculated. This method can be blazing fast if you have an analytic partial derivative function on hand. It can also be arbitrarily exact if you either (1) repeat the whole process in small steps between your two steps of parameters, or (2) find the optimal midpoint at which to evaluate the sensitivity.
 
 ## Stepwise replacement `stepwise_replacement()`
-This method works by swapping out elements of the first parameters incrementally turning them into the second set of parameters. At each parameter replacement, we recalculate the result. You end up with your result calculated as many times as you have parameters. The moving first differences on this result vector approximates the leverage of that parameter's difference on the result. Since it makes a difference what order you swap the results out, usually one averages the results of going *up* and *down* the parameters. If you have $n$ parameters, it recalculates the result $2*n$ times. The sum of the parameter-specific contributions is equal to the difference in the summary result. Each-parameter's contribution is approximate.
+This method works by swapping out elements of the first parameters, incrementally turning them into the second set of parameters. At each parameter replacement, we recalculate the result. You end up with your result calculated as many times as you have parameters. The moving first differences on this result vector approximates the leverage of that parameter's difference on the result. Since it makes a difference what order you swap the results out, usually one averages the results of going *up* and *down* the parameters. If you have $n$ parameters, it recalculates the result $2*n$ times. The sum of the parameter-specific contributions is equal to the difference in the summary result. Each-parameter's contribution is approximate, but the sum is exact. Theoretically, if you repeat this over all possible swap order permutations and average the results, then the contribution of each parameter is exact, but this isn't computationally practical. 
 
 ## Gradual perturbation `horiuchi()`
-This method works by interpolating between your first and second parameters in `N` equal steps. This then becomes the ($n*N$) *background* against which rate differences are perturbed. At each interpolation point and for each parameter we perturb the parameter both up and down by $1/(2*N)$ of the amount by which it changed and recalculate the result. The difference between these two calculations is an $n*N$ approximation of each parameter at each interpolation point, and summing over the interpolated space within parameters approximates the contribution of that parameter to the different in your result. For $n$ parameters and $N$ interpolation points, your result ends up recalculated $2*n*N$ times, so for large numbers of parameters and large `N` this method can be slow. 
+This method works by interpolating between your $n$ first and second parameters in `N` equal steps. This then becomes the ($n*N$) *background* against which rate differences are perturbed. At each interpolation point and for each parameter we perturb the parameter both up and down by $1/(2*N)$ of the amount by which it changed and recalculate the result. The difference between these two calculations is an $n*N$ approximation of the contribution of each parameter at each interpolation point, and summing over the interpolated space within parameters approximates the contribution of that parameter to the difference in your result. For $n$ parameters and $N$ interpolation points, your result ends up recalculated $2*n*N$ times, so for large numbers of parameters and large `N` this method can be slow. The result is arbitrarily precise as $N$ increases, and usually $N=20$ gives a usable result.
 
 ## How they work
 As far as we're concerned, to use these decomposition methods from `DemoDecomp` package you need to be able to write your code in the form of a function that takes a single vector of parameters.
