@@ -356,8 +356,8 @@ The Arriaga method [@arriaga1984measuring] is designed to decompose a _change_ i
 The method is usually expressed using survival probabilities ($l_x$) and person-years ($_nL_x$ and $T_x$) in the life table as the primary ingredients. We will calculate a lifetable using tools we created in the second session.
 
 ```{r}
-#source("https://raw.githubusercontent.com/timriffe/BSSD2025Module2/master/02_lifetables.R")
-source("02_lifetables.R")
+source("https://raw.githubusercontent.com/timriffe/BSSD2025Module2/master/02_lifetables.R")
+
 LT <- 
   DAT |> 
   filter(sex != "total") |> 
