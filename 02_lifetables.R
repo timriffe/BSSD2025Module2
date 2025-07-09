@@ -1,6 +1,6 @@
 
 # function based on table in HMD methods protocol
-mx_to_ax <- function(mx, sex, age,nx){
+mx_to_ax <- function(mx, sex, age, nx){
   ax <-
     case_when(
       age == 0 & sex == "male" & mx < 0.02300 ~ 0.14929 - 1.99545 * mx,
@@ -52,7 +52,6 @@ lt_full <- function(data, radix = 1, groups){
     mutate(
       # new use nx
       nx = c(diff(age),1),
-      mx = if_else(is.na(mx),.5,mx),
       ax = mx_to_ax(mx = mx, 
                     sex = groups$sex, 
                     age = age,
