@@ -42,7 +42,7 @@ wpp <-
 
 Now calculate lifetable for each subset (year, sex, location)
 
-```{r}
+```{r, eval = FALSE}
 wpp_lt <-
   wpp |> 
   mutate(sex = if_else(sex == "m","male","female")) |> 
@@ -53,21 +53,62 @@ wpp_lt <-
                    radix = 1e5))
 ```
 
+# 
+
+In a move of pure desperation, I copied the function guts of `lt_full()` into a pure `mutate()`. Let's not rule out that I have an old machine as being the primary cause of this awkward delay.
+
+```{r}
+wpp_lt <-
+  wpp |> 
+  mutate(sex = if_else(sex == "m","male","female")) |> 
+  group_by(un_code, year, sex) |> 
+  mutate(
+      # new use nx
+      nx = c(diff(age),1),
+      ax = mx_to_ax(mx = mx, 
+                    sex = sex[1], 
+                    age = age,
+                    nx = nx),
+      qx = calc_qx(mx = mx, 
+                   ax = ax, 
+                   age = age,
+                   nx = nx),
+      lx = calc_lx(qx = qx, radix = 1e5),
+      dx = lx * qx,
+      Lx = calc_Lx(lx = lx,
+                   ax = ax,
+                   dx = dx,
+                   nx = nx),
+      Tx = calc_Tx(Lx),
+      ex = Tx / lx) |> 
+  ungroup()
+```
+
+
 #
 
 ```{r}
 #install.packages("countrycode")
 library(countrycode)
+wpp_iso <-
 wpp_lt |> 
   mutate(iso = countrycode(sourcevar = un_code, 
             origin = "un", 
             destination = "iso3c")) |> 
-  filter(!is.na(iso))
+  filter(!is.na(iso)) 
 
+```
+```{r}
+wpp_iso |> 
+  filter(year < 2023) |> 
+  ggplot(aes(x = age, y = mx, group = interaction(year,iso))) +
+  geom_line(alpha = .05) +
+  scale_y_log10() +
+  facet_wrap(~sex)
 ```
 
 
-
+#
 
 
 
