@@ -248,7 +248,7 @@ $$ s(f(), m_x) $$
 
 $$ \delta = s(f(), \bar{m_x}) \cdot (m_x^m - m_x^f)$$
 
-
+We will continue
 
 
 
