@@ -230,7 +230,7 @@ library(expm)
 (Les %^% 3) %*% N
 ```
 
-To do a longer run and filled-out population projection _under constant conditions_, you can set it up like so:
+To do a longer-run population projection _under constant conditions_, you can set it up like so:
 ```{r}
 horizon <- tibble(h = 0:200)
 
@@ -251,7 +251,6 @@ proj <-
 # Exercises
 
 1. Plot the path of CGR out to the end of the projection. What do you see?
-
 
 2. Make a plot show the (scaled) population structure every 20 years to get a sense of how long it takes to stabilize. Which fertility distribution (1 or variant 2?) seems to have a rougher path?
 
