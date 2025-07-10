@@ -17,8 +17,8 @@ library(readr)
 library(janitor)
 source("https://raw.githubusercontent.com/timriffe/BSSD2025Module2/master/02_lifetables.R")
 B <- read_csv("https://raw.githubusercontent.com/timriffe/BSSD2025Module2/master/data/ES_B2014.csv", show_col_types = FALSE) |> 
-  mutate(sex = "total") |> 
-  select(age, sex, births = total)
+  mutate(sex = "female") |> 
+  select(age, sex, births = total) 
 
 D<- read_csv("https://raw.githubusercontent.com/timriffe/BSSD2025Module2/master/data/ES_D2014.csv", show_col_types = FALSE) |> 
      filter(year == 2014) |> 
@@ -45,7 +45,8 @@ ES2014 <-
 LT <- 
   ES2014 |> 
   mutate(exposure = (pop1 + pop2) / 2,
-         mx = deaths / exposure) |> 
+         mx = deaths / exposure,
+         mx = if_else(mx == 0,1,mx)) |> 
   select(sex,age,mx) |> 
   group_by(sex) |> 
   group_modify(~lt_full(data = .x, radix = 1, group = .y)) |> 
@@ -54,6 +55,7 @@ LT <-
 
 Calculate all the crude indicators for this short period
 
+Note when we make B pick out total and not female to run this block.
 ```{r}
 ES2014 |> 
   filter(sex == "total") |> 
@@ -73,8 +75,12 @@ ES2014 |>
 
 Let's build intuition on how growth rates can shape population age structure, using stable populations:
 
-```{r}
+In general growth relates the present to the future:
+$$ N(T) = N(0) \cdot e^{rT}$$ 
+In reverse:
+$$ N(-T) = N(0) \cdot e^{-Tr}$$
 
+```{r}
 r_values <- tibble(r = seq(-.03,.03,by=.005))
 library(colorspace)
 LT |> 
@@ -83,7 +89,7 @@ LT |>
   cross_join(r_values) |> 
   arrange(r, age) |> 
   group_by(r) |> 
-  mutate(Cx = Lx * exp(-r*(age+.5)),
+  mutate(Cx = Lx * exp(-(age+.5) * r),
          Cx = Cx / sum(Cx)) |> 
   ggplot(aes(x = age, y = Cx, color = r, group = r)) +
   geom_line() +
@@ -102,8 +108,10 @@ asfr <-
   mutate(exposure = (pop1 + pop2) / 2) |> 
   arrange(age) |> 
   mutate(births = if_else(is.na(births),0,births),
-         asfr = births / exposure) |> 
-  select(age, asfr)
+         asfr = births / exposure) 
+asfr |> 
+ggplot(aes(x = age, y = asfr)) +
+  geom_line()
 ```
 
 2. Calculate Survival probabilities
@@ -118,7 +126,7 @@ Sx <-
   filter(!is.na(Sx)) # NEW
 ```
 
-Turn these into the matrix diag
+Turn these into the matrix diag. First step (next we make it become the subdiagonal)
 
 ```{r}
 L <-
@@ -148,7 +156,7 @@ optional closeout
 $$ \frac{T_\omega}{T_{\omega - 1}}$$ 
 ```{r, eval = FALSE}
 Tx_closeout <-
-LT |> 
+  LT |> 
   filter(sex == "female",
   age >= 109) |> 
   pull(Tx)
@@ -188,13 +196,13 @@ sx <- c(sx,0)
 # induce narrow fertility:
 TFR <- sum(Fx)
 
+top_row <- L0 * PF * (Fx + lead(Fx,default = 0)) / 2 * sx
+
+
 # second asfr schedule is meant to be narrower, to make a point
 # about wave dissipation
 Fx2 <- TFR * (Fx^2) / sum(Fx^2)
-
-top_row <- L0 * PF * (Fx + lead(Fx,default = 0)) / 2 * sx
 top_row2 <- L0 * PF * (Fx2 + lead(Fx,default = 0)) / 2 * sx
-
 ```
 
 # Now impute this row into the Leslie matrix
@@ -215,14 +223,15 @@ N <-
   filter(sex == "female") |> 
   pull(pop2)
 
-# plot(0:110, N, type = 'l')
-# lines(0:110, c(Les %*% N), col = "blue")
+plot(0:110, N, type = 'l')
+lines(0:110, c( Les%*% N), col = "blue")
+lines(0:110, c( Les%*% (Les%*% N)), col = "red")
 ```
 
 # Let's do a longer-term population projection
 
 To carry the population over longer time horizons, you can take matrix powers. See below: we can keep multiplying the Leslie matrix into the output of the previous multiplication h times, or we could just raise the Leslie matrix to the hth power. Using a matrix exponential. 
-```{r, eval = FALSE}
+```{r, eval = FALSE, message = FALSE}
 Les %*% (Les %*% (Les %*% N))
 
 # install.packages("expm")
@@ -240,19 +249,20 @@ proj <-
   select(year, age, p0 = pop2) |> 
   # this line induces waviness in the starting population,
   # for the experiment about wave dissipation
-  mutate(p02 = p0 * (sin(age /10) + 1.3)) |> 
+  #mutate(p02 = p0 * (sin(age /10) + 1.3)) |> 
   cross_join(horizon) |> 
   arrange(h, age) |> 
   group_by(h) |> 
   mutate(pop = c((Les %^% h[1]) %*% p0 ),
-         pop2 = c((Les2 %^% h[1]) %*% p02 ))
+         pop2 = c((Les2 %^% h[1]) %*% p0 ))
+proj
 ```
 
 # Exercises
 
 1. Plot the path of CGR out to the end of the projection. What do you see?
 
-2. Make a plot show the (scaled) population structure every 20 years to get a sense of how long it takes to stabilize. Which fertility distribution (1 or variant 2?) seems to have a rougher path?
+2. Make a plot shows the (scaled) population structure every 20 years to get a sense of how long it takes to stabilize. Which fertility distribution (1 or variant 2?) seems to have a rougher path?
 
 
 
