@@ -302,7 +302,60 @@ gha1 |>
     summarize(Delta = sum(delta))
 ```
 
-# let's take a look at 
+# let's take a look at generalized decomposition
+
+```{r}
+library(DemoDecomp)
+```
+
+LTRE Lifetable Response Experiment
+
+```{r}
+# ltre()
+```
+
+Stepwise replacement
+```{r}
+# stepwise_replacement()
+```
+
+Horiuchi - pseudocontinuous decomposition, or the linear integral decomposition method.
+
+```{r}
+# horiuchi()
+```
+
+What you need to do to use any of these functions is write your function so that it can calculate your output using a single vector of parameters.
+
+```{r}
+mx_to_e0 <- function(mx, age, sex = "female"){
+  lt <- lt_full2(mx = mx, age = age, sex = sex)
+  lt$ex[1]
+}
+```
+
+Usage:
+```{r}
+gha_dec <-
+  ghalt |> 
+  select(sex,age,mx) |> 
+  pivot_wider(names_from = sex, values_from = mx) |> 
+  mutate(deltaf = horiuchi(mx_to_e0, male, female, sex = "female",age = age, N = 20),
+         deltam = horiuchi(mx_to_e0, male, female, sex = "male",age = age, N = 20),
+         delta = (deltaf + deltam) / 2)
+
+gha_dec |> 
+  mutate(nx = c(diff(age),1)) |> 
+  ggplot(aes(x =age, y = delta / nx)) +
+  geom_line()
+```
+
+
+
+
+
+
+
 
 
 
