@@ -58,7 +58,7 @@ Today, we're of course exploiting Marie-Piers labor once again. As usual I've ta
 
 # Matrix algebra: a brief review
 
-Matrix multiplication is not the same as artithmetic multiplation!
+Matrix multiplication is not the same as arithmetic multiplication!
 ```{r}
 #Review of matrix algebra
 
@@ -156,7 +156,7 @@ LT <-
          mx = deaths / exposure) |> 
   select(sex,age,mx) |> 
   group_by(sex) |> 
-  group_modify(~LT_tidy(data = .x)) |> 
+  group_modify(~lt_full(data = .x, group = .y)) |> 
   ungroup()
 ```
 
@@ -293,8 +293,7 @@ exponential_growth <-
   Components %>% 
   mutate(r_exp = log(P2 / P1),
          r_nat_exp = log((P1 + B - D) / P1)) %>% 
-  right_join(tibble(t = 0:10), 
-             by = character()) %>% 
+  cross_join(tibble(t = 0:10)) %>% 
   mutate(Pt_exp = P1 * exp(r_exp * t),
          Pt_nat_exp = P1 * exp(r_nat_exp * t)) %>% 
   select(t, Pt_exp, Pt_nat_exp, r_exp, r_nat_exp)
@@ -377,7 +376,7 @@ Fem <-
   ES2014 |> 
   filter(sex == "female") |> 
   select(-births) |> 
-  right_join(B, by = "age") |> 
+  right_join(B, by = join_by(age)) |> 
   mutate(exposure = (pop1+pop2) / 2,
          asfr = births / exposure,
          asfr_f = asfr * .4886)
@@ -550,7 +549,7 @@ asfr <-
   select(-births) %>% 
   # this is the only difference from before
   # in earlier chunk this was a right_join()
-  left_join(B, by = "age") %>% 
+  left_join(B, by = join_by(age)) %>% 
   mutate(exposure = (pop1 + pop2) / 2,
          asfr = births / exposure,
          asfr = ifelse(is.na(asfr), 0 , asfr)) %>% 
@@ -584,8 +583,7 @@ Pt <-
   ES2014 %>% 
   filter(sex == "female") %>% 
   select(age, population = pop2) %>% 
-  right_join(tibble(t = 0:100),
-             by = character()) %>% 
+  cross_join(tibble(t = 0:100)) %>% 
   arrange(t, age) %>% 
   group_by(t) %>% 
   mutate(population = (Les %^% t[1]) %*% population %>% c()) %>% 
@@ -694,7 +692,7 @@ Ax = \lambda x
 $$
 where x is some scalar, called eigenvector.
 
-The eigenvalue is found by solving
+The eigenvalue is found by solvinfg
 
 $$
 (A-\lambda I)x = 0
@@ -751,7 +749,7 @@ stable_struct <- tibble(age = 0:110,
                         stable = 100 * evec / sum(evec))
 Struct_t |> 
   filter(t == max(t)) |> 
-  left_join(stable_struct, by = "age") |> 
+  left_join(stable_struct, by = join_by(age)) |> 
   pivot_longer(structure:stable, 
                names_to = "variant", 
                values_to = "structure") |> 
