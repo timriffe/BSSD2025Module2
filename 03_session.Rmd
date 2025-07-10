@@ -40,68 +40,74 @@ wpp <-
   read_csv("https://github.com/timriffe/BSSD2025Module2/raw/refs/heads/master/data/mxwpp.csv.gz", show_col_types = FALSE)
 ```
 
-Now calculate lifetable for each subset (year, sex, location)
+
+
+# add iso3 codes and filter down to countries only
+```{r, warning = FALSE}
+#install.packages("countrycode")
+library(countrycode)
+wpp <-
+  wpp |> 
+  mutate(iso = countrycode(sourcevar = un_code, 
+            origin = "un", 
+            destination = "iso3c")) |> 
+  filter(!is.na(iso)) 
+```
+
+# 
+Now calculate lifetable for each subset (year, sex, location); notice eval = FALSE, because I'm not patient.
 
 ```{r, eval = FALSE}
 wpp_lt <-
   wpp |> 
   mutate(sex = if_else(sex == "m","male","female")) |> 
-  group_by(un_code, year, sex) |> 
+  group_by(iso, year, sex) |> 
   reframe(lt_full2(age = age, 
                    mx = mx, 
                    sex = sex,
                    radix = 1e5))
 ```
 
-# 
-
-In a move of pure desperation, I copied the function guts of `lt_full()` into a pure `mutate()`. Let's not rule out that I have an old machine as being the primary cause of this awkward delay.
-
+Now I've taken the time to refactor this code to run in parallel. This will adapt to your machine somewhat. I have 8 cores, so it will use 7 of them
 ```{r}
-wpp_lt <-
-  wpp |> 
-  mutate(sex = if_else(sex == "m","male","female")) |> 
-  group_by(un_code, year, sex) |> 
-  mutate(
-      # new use nx
-      nx = c(diff(age),1),
-      ax = mx_to_ax(mx = mx, 
-                    sex = sex[1], 
-                    age = age,
-                    nx = nx),
-      qx = calc_qx(mx = mx, 
-                   ax = ax, 
-                   age = age,
-                   nx = nx),
-      lx = calc_lx(qx = qx, radix = 1e5),
-      dx = lx * qx,
-      Lx = calc_Lx(lx = lx,
-                   ax = ax,
-                   dx = dx,
-                   nx = nx),
-      Tx = calc_Tx(Lx),
-      ex = Tx / lx) |> 
-  ungroup()
+library(purrr)
+library(furrr)
+# set up the workers
+plan(multisession, workers = parallel::detectCores() - 1)
+
+# First, cut down data,
+wpp <- wpp |>
+  mutate(sex = if_else(sex == "m", "male", "female")) |>
+  select(iso, year, sex, age, mx) |>
+  filter(year < 2022) |> 
+  # now apply groups and actually split the data
+  group_by(iso, year, sex) |>
+  group_split() |>
+  future_map(\(df) {
+    lt_full2(
+      age = df$age,
+      mx = df$mx,
+      sex = df$sex[1],
+      radix = 1e5
+    ) |>
+      # keep grouping info... easy to forget this
+      mutate(
+        iso = df$iso[1],
+        year = df$year[1],
+        sex = df$sex[1]
+      )
+  }) |>
+  bind_rows()
+
+#Manually shut down parallel workers when done
+plan(sequential)
+gc()
 ```
 
 
-#
-
 ```{r}
-#install.packages("countrycode")
-library(countrycode)
-wpp_iso <-
-  wpp_lt |> 
-  mutate(iso = countrycode(sourcevar = un_code, 
-            origin = "un", 
-            destination = "iso3c")) |> 
-  filter(!is.na(iso)) 
-
-```
-```{r}
-wpp_iso |> 
-  filter(year < 2023,
-         year %% 10 == 0) |> 
+wpp |> 
+  filter(year %% 10 == 0) |> 
   ggplot(aes(x = age, y = mx, group = interaction(year,iso))) +
   geom_line(alpha = .05) +
   scale_y_log10() +
@@ -126,7 +132,7 @@ slope_helper <- function(year, e0){
 4. display result as a table with decades in columns and continents in rows
 
 ```{r}
-wpp_iso |> 
+wpp |> 
   mutate(continent = countrycode(iso, 
                                  origin = "iso3c", 
                                  destination = "continent"),
@@ -140,7 +146,7 @@ wpp_iso |>
 ```
 
 ```{r}
-wpp_iso |> 
+wpp |> 
   filter(age == 0,
          year < 2020,
          sex == "female") |> 
@@ -184,7 +190,7 @@ world_standard <-
 
 Now we need to figure out which abridged age each single age falls within. This three-step processing (`if_else()`) could be reframed as a `case_when()` call, but my mind isn't there right now, sry. Then we're ready to merge the standard to the wpp lifetables using the new `age_abr` column. The age-standardized death rates are then the weighted mean of age-specific death weights using the standard as the weights (`w`).
 ```{r}
-wpp_iso |> 
+wpp |> 
   mutate(age_abr = age - age %% 5,
          age_abr = if_else(between(age,1,4),1,age_abr),
          age_abr = if_else(age >= 90, 90, age_abr)) |> 
@@ -244,12 +250,22 @@ $$ \mathbf{\delta}  = \mathcal{D}(f(),m_x^f, m_x^m)$$
 The fancy D can be any kind of decomposition approach. For the case of life expectancy there are some that are based on tranformations of lifetable columns. For example, Arriaga or Chandrasekaran. Or you could take a totally different approach.
 
 $$ e_0 = f(m_x) $$
+
+Imagine a sensitivity function for your index of interest. This tells you how much the index changes per unit of perturbation in the input parameters. This might have an analytic expression (it does for lifetables), or you might get it from a numerical gradient function. This function goes by different names in different disciplines: sensitivity function; gradient function; partial derivative, and surely others.
 $$ s(f(), m_x) $$
+in our case $$\frac{\partial e_0}{\partial m_x}$$
 
 $$ \delta = s(f(), \bar{m_x}) \cdot (m_x^m - m_x^f)$$
+$$ \frac{\partial e_0}{\partial m_x} = -\ell(x)e(x)$$
+This is all for the sake of generality
 
-We will continue
+Let's use a pacakge
 
+```{r}
+# remotes::install_github("timriffe/LEdecomp")
+library(LEdecomp)
+
+```
 
 
 
