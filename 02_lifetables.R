@@ -60,7 +60,7 @@ lt_full <- function(data, radix = 1, groups){
                    ax = ax, 
                    age = age,
                    nx = nx),
-      lx = calc_lx(qx = qx, radix = 1e5),
+      lx = calc_lx(qx = qx, radix = radix),
       dx = lx * qx,
       Lx = calc_Lx(lx = lx,
                    ax = ax,
