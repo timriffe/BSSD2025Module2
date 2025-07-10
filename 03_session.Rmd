@@ -351,6 +351,16 @@ gha_dec |>
 ```
 
 
+# Excercise 
+1. load (recreate) the Spanish rates we used on Tuesday.
+2. pick out males or females in 1960,1980,2000,2019
+3. decompose the change in life expectancy from 1960-1980, 1980-2000, 2000-2019
+4. plot the age patterns of the contributions of mortality in each age for the three periods,
+this can be 3 lines on one plot.
+
+I will give a separate script to solve this tomorrow, but have at it
+
+
 
 
 
