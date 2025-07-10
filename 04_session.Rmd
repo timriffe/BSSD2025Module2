@@ -1,0 +1,270 @@
+---
+title: "session 4 notes"
+author: "Tim Riffe"
+date: "2024-07-11"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Get data
+
+```{r, message = FALSE}
+library(tidyverse)
+library(readr)
+library(janitor)
+source("https://raw.githubusercontent.com/timriffe/BSSD2025Module2/master/02_lifetables.R")
+B <- read_csv("https://raw.githubusercontent.com/timriffe/BSSD2025Module2/master/data/ES_B2014.csv", show_col_types = FALSE) |> 
+  mutate(sex = "total") |> 
+  select(age, sex, births = total)
+
+D<- read_csv("https://raw.githubusercontent.com/timriffe/BSSD2025Module2/master/data/ES_D2014.csv", show_col_types = FALSE) |> 
+     filter(year == 2014) |> 
+  select(-open_interval) |> 
+  pivot_longer(female:total, 
+               names_to = "sex", 
+               values_to = "deaths")
+
+P <- read_csv("https://raw.githubusercontent.com/timriffe/BSSD2025Module2/master/data/ES_P.csv.gz", show_col_types = FALSE) |> 
+  clean_names() |> 
+  select(-open_interval) |> 
+  filter(year== 2014) |> 
+  pivot_longer(female1:total2, 
+               names_to = "sex", 
+               values_to = "pop") |> 
+  mutate(period = parse_number(sex),
+         sex = gsub('[[:digit:]]+', '', sex)) |> 
+  pivot_wider(names_from = period, values_from = pop, names_prefix="pop")
+
+ES2014 <- 
+  left_join(P, D, by = join_by(year,sex, age)) |> 
+  left_join(B, by = join_by(sex, age))
+
+LT <- 
+  ES2014 |> 
+  mutate(exposure = (pop1 + pop2) / 2,
+         mx = deaths / exposure) |> 
+  select(sex,age,mx) |> 
+  group_by(sex) |> 
+  group_modify(~lt_full(data = .x, radix = 1, group = .y)) |> 
+  ungroup()
+```
+
+Calculate all the crude indicators for this short period
+
+```{r}
+ES2014 |> 
+  filter(sex == "total") |> 
+  mutate(exposure = (pop1 + pop2) / 2) |> 
+  summarize(E = sum(exposure),
+            D = sum(deaths),
+            B = sum(births, na.rm = TRUE),
+            G = sum(pop2) - sum(pop1),
+            P1 = sum(pop1),
+            P2 = sum(pop2)) |> 
+  mutate(CGR = G / E,
+         CBR = B / E,
+         CDR = D / E,
+         CNMR = (P2 - (P1 + B - D)) / E,
+         CNGR = CBR - CDR)
+```
+
+Let's build intuition on how growth rates can shape population age structure, using stable populations:
+
+```{r}
+
+r_values <- tibble(r = seq(-.03,.03,by=.005))
+library(colorspace)
+LT |> 
+  filter(sex == "female") |> 
+  select(age, Lx) |> 
+  cross_join(r_values) |> 
+  arrange(r, age) |> 
+  group_by(r) |> 
+  mutate(Cx = Lx * exp(-r*(age+.5)),
+         Cx = Cx / sum(Cx)) |> 
+  ggplot(aes(x = age, y = Cx, color = r, group = r)) +
+  geom_line() +
+  scale_color_binned_sequential() +
+  theme_minimal()
+```
+
+# Let's gather what we need in order to do a population projection
+
+1. Calculate ASFR (births / exposure)
+```{r}
+asfr <-
+  ES2014 |> 
+  filter(sex == "female") |> 
+  select(-sex) |> 
+  mutate(exposure = (pop1 + pop2) / 2) |> 
+  arrange(age) |> 
+  mutate(births = if_else(is.na(births),0,births),
+         asfr = births / exposure) |> 
+  select(age, asfr)
+```
+
+2. Calculate Survival probabilities
+
+$$ S_x = \frac{L_{x+1}}{L_x}$$
+```{r}
+Sx <-
+  LT |> 
+  filter(sex == "female") |> 
+  select(age, Lx) |> 
+  mutate(Sx = lead(Lx) / Lx) |> # changed mind here; removed 0 padding
+  filter(!is.na(Sx)) # NEW
+```
+
+Turn these into the matrix diag
+
+```{r}
+L <-
+  Sx |> 
+  select(-Lx) |> 
+  mutate(age_to = age + 1) |> 
+  pivot_wider(names_from = age,
+              values_from = Sx,
+              values_fill = 0) |> 
+  column_to_rownames("age_to") |> 
+  as.matrix()
+```
+
+pad the matrix
+
+```{r}
+Les <-
+  0 |> 
+  rbind(L) |> 
+  cbind(0)
+# cbind(rbind(0, L), 0)
+rownames(Les) <- colnames(Les)
+```
+
+optional closeout
+
+$$ \frac{T_\omega}{T_{\omega - 1}}$$ 
+```{r, eval = FALSE}
+Tx_closeout <-
+LT |> 
+  filter(sex == "female",
+  age >= 109) |> 
+  pull(Tx)
+
+Les[nrow(Les), ncol(Les)] <- Tx_closeout[2] / Tx_closeout[1]
+```
+
+# Fertility
+
+Now, we have to account for fertility somehow, noting:
+1. age groups need to be blended
+2. we need to discount for the survival (in the age group) of mothers
+3. we need to discount for girl births only
+4. we need to discount for the survival of infants to age 0 on Dec 31.
+
+Where does this come from?
+```{r}
+Fx  <- asfr$asfr
+# PF  <- # anyone have a guess?
+.4886 # Ken Wachter's favorite value for PF
+SRB <- 1.05 # common perception
+PF  <- 1 / (1 + SRB)
+```
+PF turns out to be quite important for this family of model, remember that
+
+```{r}
+L0 <- LT |> 
+  filter(sex == "female",
+         age == 0) |> 
+  pull(Lx)
+
+sx <-
+  Sx |> 
+  pull(Sx)
+sx <- c(sx,0)
+
+# induce narrow fertility:
+TFR <- sum(Fx)
+
+# second asfr schedule is meant to be narrower, to make a point
+# about wave dissipation
+Fx2 <- TFR * (Fx^2) / sum(Fx^2)
+
+top_row <- L0 * PF * (Fx + lead(Fx,default = 0)) / 2 * sx
+top_row2 <- L0 * PF * (Fx2 + lead(Fx,default = 0)) / 2 * sx
+
+```
+
+# Now impute this row into the Leslie matrix
+
+First index is rows, second index is columns
+```{r}
+Les[1, ] <- top_row
+
+# second copy with the narrower fertility distribution
+Les2 <- Les
+Les2[1, ] <- top_row2
+```
+
+How to project 1 year using this matrix
+```{r}
+N <- 
+  P |> 
+  filter(sex == "female") |> 
+  pull(pop2)
+
+# plot(0:110, N, type = 'l')
+# lines(0:110, c(Les %*% N), col = "blue")
+```
+
+# Let's do a longer-term population projection
+
+To carry the population over longer time horizons, you can take matrix powers. See below: we can keep multiplying the Leslie matrix into the output of the previous multiplication h times, or we could just raise the Leslie matrix to the hth power. Using a matrix exponential. 
+```{r, eval = FALSE}
+Les %*% (Les %*% (Les %*% N))
+
+# install.packages("expm")
+library(expm)
+(Les %^% 3) %*% N
+```
+
+To do a longer run and filled-out population projection _under constant conditions_, you can set it up like so:
+```{r}
+horizon <- tibble(h = 0:200)
+
+proj <-
+  P |> 
+  filter(sex == "female") |> 
+  select(year, age, p0 = pop2) |> 
+  # this line induces waviness in the starting population,
+  # for the experiment about wave dissipation
+  mutate(p02 = p0 * (sin(age /10) + 1.3)) |> 
+  cross_join(horizon) |> 
+  arrange(h, age) |> 
+  group_by(h) |> 
+  mutate(pop = c((Les %^% h[1]) %*% p0 ),
+         pop2 = c((Les2 %^% h[1]) %*% p02 ))
+```
+
+# Exercises
+
+1. Plot the path of CGR out to the end of the projection. What do you see?
+
+
+2. Make a plot show the (scaled) population structure every 20 years to get a sense of how long it takes to stabilize. Which fertility distribution (1 or variant 2?) seems to have a rougher path?
+
+
+
+
+
+
+
+
+
+
+
+
+
+
