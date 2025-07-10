@@ -203,12 +203,20 @@ In practice age-standardization is most common in the literature in spatial epid
 
 # Decomposition
 
+```{r}
+# library(pak)
+# pak("timriffe/DemoTools")
+```
+
+
 Let's read in some new data :-)
 ```{r}
+library(tidyverse)
 library(readxl)
+source("https://raw.githubusercontent.com/timriffe/BSSD2025Module2/refs/heads/master/02_lifetables.R")
 ghana <- read_excel("data/Ghana sampleData.xlsx")
 ghalt <-
-ghana |> 
+  ghana |> 
   clean_names() |> 
   select(age_group, male_pop, female_pop, 
          male_deaths, female_deaths) |> 
@@ -264,9 +272,37 @@ Let's use a pacakge
 ```{r}
 # remotes::install_github("timriffe/LEdecomp")
 library(LEdecomp)
+library(DemoTools)
+fem <- ghalt |> filter(sex == "female")
+male <- ghalt |> filter(sex == "male")
+flt <- lt_abridged2single(nMx = fem$mx,
+                   Age = fem$age,
+                   OAnew = 100,
+                   Sex = "f") |> 
+  mutate(sex = "female")
+mlt <- lt_abridged2single(nMx = male$mx,
+                   Age = male$age,
+                   OAnew = 100,
+                   Sex = "m")|> 
+  mutate(sex = "male")
+gha1 <- bind_rows(flt, mlt)
+gha1 |> 
+  filter(between(Age, 85,95))
 
+  gha1 |> 
+  select(age = Age,sex,mx = nMx) |> 
+  pivot_wider(names_from = sex, values_from = mx) |> 
+  mutate(mx_avg = (male + female) / 2,
+         sen = sen_e0_mx_lt(mx = mx_avg, 
+                            age = age, 
+                            sex = "t", 
+                            closeout = TRUE),
+         mx_diff = female - male,
+         delta = sen * mx_diff) |> 
+    summarize(Delta = sum(delta))
 ```
 
+# let's take a look at 
 
 
 
