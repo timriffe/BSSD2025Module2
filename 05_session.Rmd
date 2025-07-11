@@ -1,0 +1,357 @@
+---
+title: "session 5 notes"
+author: "Tim Riffe"
+date: "2025-07-11"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Get data
+
+```{r}
+library(tidyverse)
+ES<- read_csv("https://github.com/timriffe/BSSD2025Module2/raw/master/data/ESmx.csv.gz", show_col_types = FALSE)
+```
+
+# Visualize surface
+
+Lexis surface:
+```{r}
+ES |> 
+  ggplot(aes(x = year, y = age, z = log(mx))) +
+  geom_contour_filled() +
+  coord_equal()
+```
+
+Lines 
+```{r}
+library(colorspace)
+alpha <- 
+  ES |> 
+  group_by(age) |> 
+  summarize(alphax = mean(mx, na.rm = TRUE))
+
+ES |> 
+  ggplot(aes(x = age, y = mx)) +
+  geom_line(mapping = aes(color = year, group = year),
+            alpha = .7) +
+  scale_y_log10()+
+  scale_color_continuous_sequential("Inferno") +
+  theme_minimal() +
+  geom_line(data = alpha,
+            mapping = aes(x = age, y = alphax),
+            color = "blue", linewidth = 2)
+```
+The blue line here does a pretty good job of describing the typical age pattern of log mortality over this period.
+
+It would be great if we had a simple time trend that we could use to slide this blue line up and down to approximate the mortality of a given year. That would mean each age changing (improving) at the same speed.
+
+Then we could make it even better if we had little adjustments to the speed of improvement for each age.
+
+We're starting with 7575 parameters:
+The blue line has 101 (alpha),
+a (centered) time trend would have 1 (a slope) (kappa)
+small age-specific adjustments to that trend would imply another 101 parameters, explains a little bit more of the variation. (beta)
+
+$$ \widehat{log(m_{x,t})} = \alpha_x + \kappa_t \cdot \beta_x$$
+
+# select year range to fit to
+
+I'm just going to use the whole series, but set it up so that we could filter the years easily later:
+```{r}
+ES_to_fit <-
+  ES |> 
+  filter(year >= 1970)
+```
+
+# derive alpha
+
+```{r}
+alpha <-
+  ES_to_fit |> 
+  group_by(age) |> 
+  summarize(alphax = mean(log(mx)))
+```
+
+# center log mortality matrix
+
+```{r}
+clmx <-
+  ES_to_fit |> 
+  left_join(alpha, by = join_by(age)) |> 
+  mutate(clmx = log(mx) - alphax)
+```
+
+Visualize the remaining variation after "centering" the log mortality rates:
+```{r}
+clmx |> 
+  ggplot(aes(x= age, y = clmx, color = year, group = year)) +
+  geom_line() +
+  scale_color_continuous_sequential("Inferno") +
+  theme_minimal()
+```
+This is the remaining variation after subtracting the average log mortality from each year. That means, subtracting the blue line from the earlier age pattern plot. This is the remaining variation that we want to model.
+
+```{r}
+CLMX <-
+  clmx |> 
+  select(year, age, clmx) |> 
+  pivot_wider(names_from = year, values_from = clmx) |> 
+  column_to_rownames("age") |> 
+  as.matrix()
+```
+
+# perform SVD
+
+```{r}
+es_svd <- svd(CLMX)
+str(es_svd)
+d <- es_svd$d
+U <- es_svd$u
+V <- es_svd$v
+# (U %*% diag(d) %*% t(V)) - CLMX
+```
+
+# derive beta and kappa
+
+```{r}
+# u     first column of U
+u      <- U[, 1]
+
+# v     first column of V
+v      <- V[, 1]
+# d     first element of d
+
+d      <- d[1]
+# Bx    rescale u
+
+betax <- u / sum(u)
+
+# Kt v scaled to sum of u and d
+kappat <- v * sum(u) * d
+```
+
+Turn these into tidy objects to view:
+```{r}
+beta <- tibble(age = 0:100,
+               betax = betax)
+years <- ES_to_fit$year |> unique()
+
+kappa <- tibble(year = years,
+                kappat = kappat)
+```
+
+Take a look:
+```{r}
+beta |> 
+  ggplot(aes(x = age, y = betax)) +
+  geom_line() +
+  theme_minimal()
+
+kappa |> 
+  ggplot(aes(x = year, 
+             y = kappat)) +
+  geom_line() +
+  theme_minimal()
+```
+This kappa line is our time trend, from which we'd like to extract the pace of change in parameter called drift. If you were doing this in a serious setting, you would intervene here using time series modelling techniques. The random walk with drift approach is simple and effective, but you can do better.
+
+# join components and predict
+
+$$ \widehat{log(m_{x,t})} = \alpha_x + \kappa_t \cdot \beta_x$$
+```{r}
+ES_fit <- 
+  beta |> 
+  cross_join(kappa) |> 
+  left_join(alpha, by = join_by(age)) |> 
+  mutate(lmx_hat = alphax + betax * kappat,
+         mx_hat = exp(lmx_hat)) |> 
+  left_join(ES_to_fit, by = join_by(year, age))
+```
+```{r}
+ES_fit |> 
+  ggplot(aes(x = age, y = mx_hat, color = year, group = year)) +
+  geom_line() +
+  scale_y_log10() +
+  scale_color_continuous_sequential("Inferno") +
+  theme_minimal()
+```
+
+# examine the residuals
+
+```{r}
+ES_fit |> 
+  mutate(resid = lmx_hat - log(mx),
+         # we truncate the extreme residuals, which are
+         # mostly due to noise, in order to see the main
+         # patterns in the residuals
+         resid = case_when(resid < -.25 ~ -.25,
+                           resid > .25 ~ .25,
+                           TRUE ~ resid)) |> 
+  ggplot(aes(x = year, y = age, fill = resid)) +
+  geom_tile() +
+  scale_fill_binned_diverging("Blue-Red") +
+  theme_minimal() +
+  coord_equal()
+#hcl_palettes(plot = TRUE)
+```
+
+We saw meaningful patterns in the residuals, mostly made of cohort patterns that we're not capturing, because the model as we applied it is an age-period abstraction of the original mortality rates. We only were able to see these cohort patterns because we subtracted the essential age-period variation. So they don't necessarily have huge influence on the resulting lifetables, but these patterns are likely demographically meaningful.
+
+But, for now we'll just swallow this imprecision and know that we won't be able to carry these cohort patterns into the future with the current setup.
+
+# calculate drift and project kappa
+
+Here we need to decide how far into the future we project. It's up to us. For forecasting (projecting where you put your name on it) a rule of thumb is to project no farther than half or a third of the width of your fitting period. Anything beyond that is just a scenario.
+```{r}
+# drift     the total change in kappa divided by horizon - 1
+n <- length(kappat)
+drift <- (kappat[n] - kappat[1]) / (n - 1)
+
+# Kt future is last Kt + h * drift
+h <- 1:100
+kappa_future <- kappat[n] + h * drift
+
+kappa_fut <-
+  tibble(year = years[n] + h,
+         kappat = kappa_future,
+         series = "future")
+```
+
+Now let's join our kappa series somehow and regenerate the mortality prediction.
+
+```{r}
+kappa_all <-
+  kappa |> 
+  mutate(series = "observed") |> 
+  bind_rows(kappa_fut)
+```
+
+# examine joined kappa series
+
+```{r}
+kappa_all |> 
+  ggplot(aes(x = year, y = kappat, color = series)) +
+  geom_line() +
+  theme_minimal()
+```
+
+# recombine to create projected mortality schedule
+
+This recalculates our mortality rate prediction the same way we did it before, except now we have a long horizon projection included.
+```{r}
+proj <-
+  kappa_all |> 
+  cross_join(beta) |> 
+  left_join(alpha, by = join_by(age)) |> 
+  mutate(lmx_hat = alphax + betax * kappat,
+         mx_hat = exp(lmx_hat))
+```
+
+# check age patterns
+
+```{r}
+proj |> 
+  filter(year > 2014,
+         year %% 5 == 0,
+         year < 2040) |> 
+  ggplot(aes(x = age, y = mx_hat, color = year, group = year)) +
+  geom_line() +
+  scale_y_log10() +
+  scale_color_binned_sequential("Inferno") +
+  theme_minimal()
+```
+
+# calculate life expectancy
+
+```{r}
+#source("https://raw.githubusercontent.com/timriffe/BSSD2025Module2/master/02_lifetables.R")
+source("02_lifetables.R")
+LTproj <-
+  proj |> 
+  rename(mx = mx_hat) |> 
+  mutate(sex = "female") |> 
+  group_by(year,sex) |> 
+  group_modify(~lt_full(data = .x, groups = .y)) |> 
+  ungroup()
+```
+
+Make a plot:
+
+```{r}
+LTproj |> 
+  filter(age == 0) |> 
+  ggplot(aes(x = year, y = ex, color = series)) +
+  geom_line() +
+  theme_minimal()
+```
+
+```{r}
+
+emp <-
+  ES |> 
+  mutate(sex = "female") |> 
+  group_by(year,sex) |> 
+  group_modify(~lt_full(data = .x, groups = .y)) |> 
+  filter(age == 0) |> 
+  select(year, ex_emp = ex)
+
+LTproj |> 
+  filter(age == 0, 
+         year < 2015) |> 
+  ggplot(aes(x = -kappat, y = ex)) +
+  geom_point()
+
+# do we see a curve or line here?
+LTproj |> 
+  filter(age == 0, 
+         year < 2015) |> 
+  select(year, ex) |> 
+  left_join(emp, by = join_by(year)) |> 
+  ggplot(aes(x = ex_emp, y = ex)) +
+  geom_point() +
+  theme_minimal()
+```
+
+
+Review of main concepts:
+
+1. Standard workflow
+2. Reproducibilty
+3. Report generation is great in markdown
+
+4. some lifetable columns should become intuitive and yield lessons.
+5. rates are great because they might have laws; laws are great for diagnostic purposes, or for predictions (incl smoothing).
+6. period summary indicators require special understanding.
+7. rates are super tricky to interpret directly, so we like to convert the units (years or babies)
+8. growth: separate matters of size from matters of structure.
+9. standardization can both help and hurt.
+10. if you can calculate it, then you can decompose a difference in it. More specific parameters will (potentially) more informative or actionable implications.
+
+Resources:
+1. the workshop repo <https://github.com/timriffe/BSSD2024Module2>
+2. Kieran Healy's book: <https://socviz.co/>
+3. data wrangling materials from me: <https://github.com/timriffe/edsd2023data>
+4. reproducibility packs
+5. package vignettes
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
