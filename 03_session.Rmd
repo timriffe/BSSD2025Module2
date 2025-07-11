@@ -375,7 +375,9 @@ D <-
          mx = if_else(mx == 0, .5, mx))
 ```
 
-2. I will use `sen_e0_mx_lt()`, and the sensitivity approach (a.k.a LTRE)
+2. I will use two different approaches:
+(1) a symmetrical variant of Arriaga decomposition,
+(2) horiuchi decomposition.
 
 These are the values whose changes we want to decompose:
 ```{r}
@@ -385,7 +387,7 @@ e0 <-
   arrange(age,year) |> 
   group_by(year) |> 
   summarize(e0 = mx_to_e0(mx,age,sex="female"))
-e0
+e0$e0 |> diff()
 ```
 Due to differences in these rates:
 ```{r}
@@ -405,7 +407,7 @@ dec <-
   arrange(age,year) |> 
   group_by(age) |> 
   mutate(mx2 = lead(mx)) |> 
-  ungroup() |> 
+  ungroup()  |> 
   filter(!is.na(mx2)) |> 
   arrange(year,age) |> 
   group_by(year) |> 
@@ -416,6 +418,7 @@ dec <-
 check sums:
 ```{r}
 dec |> 
+  group_by(year) |> 
   summarize(Delta_arr = sum(delta_x),
             Delta_hor = sum(delta_x_horiuchi)) |> 
   mutate(Delta_check = e0 |> pull(e0) |> diff())
@@ -434,6 +437,7 @@ Pretty impressive m0 power early on. All in one age. Whereas older-age contribut
 
 ```{r}
 dec |> 
+  ungroup() |> 
   mutate(age = age - age %% 10) |> 
   group_by(year,age) |> 
   summarize(delta_x = sum(delta_x)) |> 
