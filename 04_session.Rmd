@@ -243,6 +243,14 @@ Les %*% (Les %*% (Les %*% N))
 # install.packages("expm")
 ```
 
+```{r}
+plot(0:110, Fx3, type = 'l')
+lines(0:110, Fx2, col = "blue")
+lines(0:110, Fx, col = "red")
+```
+
+
+
 To do a longer-run population projection _under constant conditions_, you can set it up like so:
 ```{r}
 library(expm)
@@ -284,11 +292,28 @@ cgr <-
   mutate(CGR1 = G1 / E1,
          CGR2 = G2 / E2,
          CGR3 = G3 / E3)
+```
 
+Tidy redux of the above
+```{r}
+cgr <-
+  proj |> 
+  pivot_longer(pop:pop3, names_to = "variant", values_to = "pop") |> 
+  group_by(variant, h) |> 
+  summarize(P = sum(pop), .groups = "drop") |> 
+  group_by(variant) |> 
+  mutate(E = (P + lead(P)) / 2,
+         G = c(diff(P),NA)) |> 
+  ungroup() |> 
+  filter(!is.na(E)) |> 
+  mutate(CGR = G / E)
+```
+
+
+```{r}
 cgr |> 
-  select(h,CGR1,CGR2, CGR3) |> 
-  pivot_longer(-h,names_to = "variant",values_to = "CGR") |> 
-  ggplot(aes(x=h,y=CGR, color = variant)) +
+  select(variant, h, CGR) |> 
+  ggplot(aes(x = h, y = CGR, color = variant)) +
   geom_line() +
   theme_minimal()
 ```
@@ -297,16 +322,35 @@ cgr |>
 
 ```{r}
 proj |> 
+  pivot_longer(pop:pop3, names_to = "variant", values_to = "pop") |> 
   filter(h %% 20 == 0) |> 
-  group_by(h) |> 
-  select(h,age,pop1 = pop,pop2,pop3) |> 
-  pivot_longer(c(pop1,pop2,pop3),names_to = "variant",values_to = "pop") |> 
+  group_by(h, variant) |> 
+  select(h,age,variant,pop) |> 
   group_by(h,variant) |> 
   mutate(cx = 100 * pop / sum(pop)) |> 
   ggplot(aes(x=age,y=cx,color = variant)) +
   geom_line() +
   facet_wrap(~h) +
   theme_minimal()
-  
 ```
+
+
+# how to get the stable parameters from a Leslie matrix
+
+```{r}
+r <- eigen(Les)$values[1] |> Re() |> log()
+```
+
+```{r}
+Sx |> 
+  select(age, Lx) |> 
+  mutate(Cx = Lx * exp(-(age+.5) * r),
+         Cx = 100 * Cx / sum(Cx)) |> 
+  ggplot(aes(x = age, y = Cx)) +
+  geom_line()
+```
+
+
+
+
 
