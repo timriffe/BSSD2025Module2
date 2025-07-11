@@ -58,7 +58,7 @@ This script is in part inherited from Marie-Pier Bergeron Boucher. Her original 
 
 # Demographic forecasting
 
-In the previous class, we saw how to project population size, assuming that the population is stable, i.e. the age-specific fertility and mortality rates are constant over time. These assumptions are, however, rarely met. As shown in class 1 and 2 of this module, life expectancy has been increasing over time and TFR has been decreasing, although there are exceptions to both trends. 
+In the previous class, we saw how to project population size, assuming that the population is stable, i.e. the age-specific fertility and mortality rates are constant over time. These assumptions are, however, rarely (narrator: _never_) met. As shown in class 1 and 2 of this module, life expectancy has been increasing over time and TFR has been decreasing, although there are exceptions to both trends. 
 
 To obtain a plausible forecast, one must take into account these changes in fertility and mortality over time.
 
@@ -72,9 +72,7 @@ There are four main approaches to forecasting, as defined by  @booth2006demograp
 
 4) Decomposition and disaggregation: This approach consists in breaking down rates beyond age and sex. For example, decomposing mortality by causes of deaths and fertility by parity. 
 
-For matter of simplicity, migration forecasts are set aside in this class. We will assume zero net migration in our projections, even if this assumption is considered at best naive. However, please remember that migration should also be considered in population projections. In industrialized countries, simple assumptions about future migration are often made, e.g. zero net migration or continuing of the current level of migration (with fixed age pattern). More recently, forecasters also use informed judgment and extrapolation of past trend to predict future migration flow [@booth2006demographic]. 
-
-
+For matter of simplicity, migration forecasts are set aside in this class. We will assume zero net migration in our projections, even if this assumption is considered at best naive. However, please remember that migration should also be considered in population projections. In industrialized countries, simple assumptions about future migration are often made, e.g. zero net migration or continuing of the current level of migration (with fixed age pattern). More recently, forecasters also use informed judgment and extrapolation of past trend to predict future migration flows [@booth2006demographic]. 
 
 # Data
 
@@ -166,7 +164,7 @@ alpha <-
 ```
 
 
-Examine $\alpha_x$ in a base-tastic plot
+Examine $\alpha_x$ 
 ```{r error=F, message=F, warning=F}
 alpha |> 
   ggplot(aes(x = age, y = alphax)) +
@@ -193,7 +191,6 @@ CLMX <-
   pivot_wider(names_from = year, values_from = clmx) |> 
   column_to_rownames("age") |> 
   as.matrix()
-
 ```
 
 **Step 3**: Do SVD on the centered matrix
@@ -202,7 +199,7 @@ In simple terms, the Singular Value Decomposition (SVD) is a factorization of a 
 
 It decomposes an $m~x~n$ matrix in an $m~x~m$ matrix, named $U$, (the columns consisting of left-singular vectors), an $m~x~n$ diagonal matrix with non-negative real numbers (singular values) and an $n~x~n$ matrix, named $V$, (the columns consisting of right-singular vectors). 
 
-Here, the left-singular vectors capture the age-pattern of mortality change and the right-singular vectors, the time-pattern of mortality change. For further insight on SVD in demography, take a look at Monica Alexander's 2017 blog post [https://www.monicaalexander.com/posts/2017-12-16-svd/](https://www.monicaalexander.com/posts/2017-12-16-svd/)
+Here, the left-singular vectors capture the age-pattern of mortality _change_ and the right-singular vectors, the common time-pattern of mortality change. For further insight on SVD in demography, take a look at Monica Alexander's 2017 blog post [https://www.monicaalexander.com/posts/2017-12-16-svd/](https://www.monicaalexander.com/posts/2017-12-16-svd/)
 
 
 ```{r error=F, message=F, warning=F}
@@ -368,9 +365,13 @@ LT_fit <-
                names_to = "variant",
                values_to = "mx") |> 
   filter(!is.na(mx)) |> 
+  arrange(year,series,variant,age) |> 
   bind_rows(ES_bind) |> 
+  mutate(sex = "female") |> 
   group_by(year, series, variant) |> 
-  group_modify(~LT_tidy(data = .x)) |> 
+  reframe(lt_full2(age = age,
+                   mx = mx,
+                   sex = sex)) |> 
   ungroup() 
 
 ```

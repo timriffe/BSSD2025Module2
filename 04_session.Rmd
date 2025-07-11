@@ -201,8 +201,11 @@ top_row <- L0 * PF * (Fx + lead(Fx,default = 0)) / 2 * sx
 
 # second asfr schedule is meant to be narrower, to make a point
 # about wave dissipation
-Fx2 <- TFR * (Fx^2) / sum(Fx^2)
+Fx2 <- TFR * (Fx^3) / sum(Fx^3)
+Fx2 <- c(Fx2[-c(1:5)],rep(0,5))
+Fx3 <- c(rep(0,10),Fx2[1:101])
 top_row2 <- L0 * PF * (Fx2 + lead(Fx,default = 0)) / 2 * sx
+top_row3 <- L0 * PF * (Fx3 + lead(Fx,default = 0)) / 2 * sx
 ```
 
 # Now impute this row into the Leslie matrix
@@ -214,6 +217,9 @@ Les[1, ] <- top_row
 # second copy with the narrower fertility distribution
 Les2 <- Les
 Les2[1, ] <- top_row2
+
+Les3 <- Les
+Les3[1, ] <- top_row3
 ```
 
 How to project 1 year using this matrix
@@ -231,16 +237,15 @@ lines(0:110, c( Les%*% (Les%*% N)), col = "red")
 # Let's do a longer-term population projection
 
 To carry the population over longer time horizons, you can take matrix powers. See below: we can keep multiplying the Leslie matrix into the output of the previous multiplication h times, or we could just raise the Leslie matrix to the hth power. Using a matrix exponential. 
-```{r, eval = FALSE, message = FALSE}
+```{r, message = FALSE, echo = FALSE}
 Les %*% (Les %*% (Les %*% N))
 
 # install.packages("expm")
-library(expm)
-(Les %^% 3) %*% N
 ```
 
 To do a longer-run population projection _under constant conditions_, you can set it up like so:
 ```{r}
+library(expm)
 horizon <- tibble(h = 0:200)
 
 proj <-
@@ -254,26 +259,54 @@ proj <-
   arrange(h, age) |> 
   group_by(h) |> 
   mutate(pop = c((Les %^% h[1]) %*% p0 ),
-         pop2 = c((Les2 %^% h[1]) %*% p0 ))
-proj
+         pop2 = c((Les2 %^% h[1]) %*% p0 ),
+         pop3 = c((Les3 %^% h[1]) %*% p0 ))
 ```
 
 # Exercises
 
 1. Plot the path of CGR out to the end of the projection. What do you see?
 
-2. Make a plot shows the (scaled) population structure every 20 years to get a sense of how long it takes to stabilize. Which fertility distribution (1 or variant 2?) seems to have a rougher path?
+```{r}
+cgr <-
+  proj |> 
+  group_by(h) |> 
+  summarize(P1 = sum(pop),
+            P2 = sum(pop2),
+            P3 = sum(pop3)) |> 
+  mutate(E1 = (P1 + lead(P1)) / 2,
+         E2 = (P2 + lead(P2)) / 2,
+         E3 = (P3 + lead(P3)) / 2,
+         G1 = c(diff(P1),NA),
+         G2 = c(diff(P2),NA),
+         G3 = c(diff(P3),NA)) |> 
+  filter(!is.na(E1)) |> 
+  mutate(CGR1 = G1 / E1,
+         CGR2 = G2 / E2,
+         CGR3 = G3 / E3)
 
+cgr |> 
+  select(h,CGR1,CGR2, CGR3) |> 
+  pivot_longer(-h,names_to = "variant",values_to = "CGR") |> 
+  ggplot(aes(x=h,y=CGR, color = variant)) +
+  geom_line() +
+  theme_minimal()
+```
 
+2. Make a plot that shows the (scaled) population structure every 20 years to get a sense of how long it takes to stabilize. Which fertility distribution (1 or variant 2?) seems to have a rougher path?
 
-
-
-
-
-
-
-
-
-
-
+```{r}
+proj |> 
+  filter(h %% 20 == 0) |> 
+  group_by(h) |> 
+  select(h,age,pop1 = pop,pop2,pop3) |> 
+  pivot_longer(c(pop1,pop2,pop3),names_to = "variant",values_to = "pop") |> 
+  group_by(h,variant) |> 
+  mutate(cx = 100 * pop / sum(pop)) |> 
+  ggplot(aes(x=age,y=cx,color = variant)) +
+  geom_line() +
+  facet_wrap(~h) +
+  theme_minimal()
+  
+```
 
