@@ -53,7 +53,7 @@ lt_full <- function(data, radix = 1, groups){
       # new use nx
       nx = c(diff(age),1),
       ax = mx_to_ax(mx = mx, 
-                    sex = groups$sex[1], 
+                    sex = rep(groups$sex,n())), 
                     age = age,
                     nx = nx),
       qx = calc_qx(mx = mx, 
