@@ -13,7 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 # usage of new lifetable function, `lt_full()`
 
 To load, you can source straight from github like so:
-```{r}
+```{r, message = FALSE}
 library(tidyverse)
 library(janitor)
 source("https://raw.githubusercontent.com/timriffe/BSSD2025Module2/refs/heads/master/02_lifetables.R")
@@ -360,9 +360,88 @@ this can be 3 lines on one plot.
 
 I will give a separate script to solve this tomorrow, but have at it
 
+```{r}
+D <- read_csv("https://github.com/timriffe/BSSD2025Module2/raw/refs/heads/master/data/ES_mort.csv.gz",show_col_types = FALSE) |> 
+  clean_names()
+```
 
+1.  filter
+```{r}
+D <-
+  D |> 
+  filter(sex == "female",
+         year %in% c(1960,1980,2000,2019))|> 
+  mutate(mx = if_else(is.na(mx), .5, mx),
+         mx = if_else(mx == 0, .5, mx))
+```
 
+2. I will use `sen_e0_mx_lt()`, and the sensitivity approach (a.k.a LTRE)
 
+These are the values whose changes we want to decompose:
+```{r}
+e0 <-
+  D |> 
+  select(-exposure) |> 
+  arrange(age,year) |> 
+  group_by(year) |> 
+  summarize(e0 = mx_to_e0(mx,age,sex="female"))
+e0
+```
+Due to differences in these rates:
+```{r}
+D |>
+  ggplot(aes(x = age,y = mx, color = year, group = year)) +
+  geom_line() +
+  scale_y_log10() +
+  theme_minimal()
+```
+
+Do the decomposition
+```{r}
+library(DemoDecomp)
+dec <-
+  D |> 
+  select(-exposure) |> 
+  arrange(age,year) |> 
+  group_by(age) |> 
+  mutate(mx2 = lead(mx)) |> 
+  ungroup() |> 
+  filter(!is.na(mx2)) |> 
+  arrange(year,age) |> 
+  group_by(year) |> 
+  mutate(delta_x = arriaga_sym(mx1 = mx,mx2 = mx2,age=age,sex1="f",closeout = TRUE),
+         delta_x_horiuchi = horiuchi(mx_to_e0,mx,mx2,N=20,age=age,sex="female"))
+```
+
+check sums:
+```{r}
+dec |> 
+  summarize(Delta_arr = sum(delta_x),
+            Delta_hor = sum(delta_x_horiuchi)) |> 
+  mutate(Delta_check = e0 |> pull(e0) |> diff())
+```
+
+Visualize age patterns: which ages drive progress?
+
+```{r}
+dec |> 
+  ggplot(aes(x=age, y = delta_x, color = as.factor(year))) +
+  geom_line() +
+  theme_minimal()
+```
+
+Pretty impressive m0 power early on. All in one age. Whereas older-age contributions are spread out. Let's group by 10-year age groups (using modulo)
+
+```{r}
+dec |> 
+  mutate(age = age - age %% 10) |> 
+  group_by(year,age) |> 
+  summarize(delta_x = sum(delta_x)) |> 
+  ungroup() |> 
+  ggplot(aes(x =age, y = delta_x, fill = as.factor(year))) +
+  geom_col(position = "dodge2") +
+  theme_minimal()
+```
 
 
 
