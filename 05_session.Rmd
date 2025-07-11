@@ -14,7 +14,19 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 library(tidyverse)
 ES<- read_csv("https://github.com/timriffe/BSSD2025Module2/raw/master/data/ESmx.csv.gz", show_col_types = FALSE)
+
+# mx_to_e0_cheap <- function(mx){
+#   sum(exp(-cumsum(mx))) - .5
+# }
+# 
+# ES |> 
+#   group_by(year) |> 
+#   summarize(e0 = mx_to_e0_cheap(mx)) 
 ```
+
+The above hackish function is approximating this repationship
+$$ \ell(x) = 1 - F(x) = e^{-H(x)}$$
+
 
 # Visualize surface
 
@@ -24,6 +36,17 @@ ES |>
   ggplot(aes(x = year, y = age, z = log(mx))) +
   geom_contour_filled() +
   coord_equal()
+```
+
+
+Look at time trends in specific ages
+```{r}
+ES |> 
+  filter(age - age %% 10 == 0,
+         year >= 1960) |> 
+  ggplot(aes(x = year, y = mx, group = age, color = as.factor(age))) +
+  geom_line() +
+  scale_y_log10()
 ```
 
 Lines 
