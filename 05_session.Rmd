@@ -111,7 +111,7 @@ clmx <-
 Visualize the remaining variation after "centering" the log mortality rates:
 ```{r}
 clmx |> 
-  ggplot(aes(x= age, y = clmx, color = year, group = year)) +
+  ggplot(aes(x= year, y = clmx, color = age, group = age)) +
   geom_line() +
   scale_color_continuous_sequential("Inferno") +
   theme_minimal()
@@ -193,6 +193,7 @@ ES_fit <-
   mutate(lmx_hat = alphax + betax * kappat,
          mx_hat = exp(lmx_hat)) |> 
   left_join(ES_to_fit, by = join_by(year, age))
+ES_fit
 ```
 ```{r}
 ES_fit |> 
@@ -205,9 +206,11 @@ ES_fit |>
 
 # examine the residuals
 
+We looked at the residuals and saw that we're not capturing cohort variation in mortality. But there are no major residual features in the period or age directions.
+
 ```{r}
 ES_fit |> 
-  mutate(resid = lmx_hat - log(mx),
+  mutate(resid = lmx_hat - log(mx), 
          # we truncate the extreme residuals, which are
          # mostly due to noise, in order to see the main
          # patterns in the residuals
@@ -231,7 +234,7 @@ But, for now we'll just swallow this imprecision and know that we won't be able 
 Here we need to decide how far into the future we project. It's up to us. For forecasting (projecting where you put your name on it) a rule of thumb is to project no farther than half or a third of the width of your fitting period. Anything beyond that is just a scenario.
 ```{r}
 # drift     the total change in kappa divided by horizon - 1
-n <- length(kappat)
+n     <- length(kappat)
 drift <- (kappat[n] - kappat[1]) / (n - 1)
 
 # Kt future is last Kt + h * drift
@@ -306,7 +309,8 @@ Make a plot:
 
 ```{r}
 LTproj |> 
-  filter(age == 0) |> 
+  filter(age == 0,
+         year <=2040) |> 
   ggplot(aes(x = year, y = ex, color = series)) +
   geom_line() +
   theme_minimal()
@@ -323,19 +327,15 @@ emp <-
   select(year, ex_emp = ex)
 
 LTproj |> 
-  filter(age == 0, 
-         year < 2015) |> 
-  ggplot(aes(x = -kappat, y = ex)) +
-  geom_point()
-
-# do we see a curve or line here?
-LTproj |> 
-  filter(age == 0, 
-         year < 2015) |> 
-  select(year, ex) |> 
+  filter(age == 0) |> 
+  select(year, e0_hat = ex) |> 
   left_join(emp, by = join_by(year)) |> 
-  ggplot(aes(x = ex_emp, y = ex)) +
-  geom_point() +
+  pivot_longer(c(ex_emp, e0_hat), 
+               names_to = "variant", 
+               values_to = "e0") |> 
+  filter(year < 2040) |> 
+  ggplot(aes(x = year, y = e0, color = variant)) +
+  geom_line() +
   theme_minimal()
 ```
 
@@ -355,7 +355,7 @@ Review of main concepts:
 10. if you can calculate it, then you can decompose a difference in it. More specific parameters will (potentially) more informative or actionable implications.
 
 Resources:
-1. the workshop repo <https://github.com/timriffe/BSSD2024Module2>
+1. the workshop repo <https://github.com/timriffe/BSSD2025Module2>
 2. Kieran Healy's book: <https://socviz.co/>
 3. data wrangling materials from me: <https://github.com/timriffe/edsd2023data>
 4. reproducibility packs
